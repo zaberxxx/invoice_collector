@@ -329,13 +329,17 @@ async function scanLiveFrame() {
     const codes = await detectQrCodesFromSource(els.cameraPreview);
     const raw = codes.map((code) => code.rawValue).filter(Boolean).join("\n");
     const parsed = parseTaiwanInvoiceQr(raw);
-    if (Object.keys(removeEmpty(parsed)).length) {
+    if (hasCoreInvoiceData(parsed)) {
       stopLiveScan();
       applyDetectedInvoice(parsed, "已即時讀取 QR，請確認");
       showToast("已掃到發票 QR");
       return;
     }
-    els.cameraStatus.textContent = "掃描中，請靠近左側 QR";
+    if (Object.keys(removeEmpty(parsed)).length) {
+      els.cameraStatus.textContent = "已讀到部分 QR，請靠近左側 QR";
+    } else {
+      els.cameraStatus.textContent = "掃描中，請靠近左側 QR";
+    }
   } catch {
     els.cameraStatus.textContent = "掃描中，請保持發票平整";
   } finally {
@@ -531,17 +535,49 @@ async function detectInvoiceTextFromImage(file) {
 }
 
 function parseTaiwanInvoiceQr(raw) {
-  const text = String(raw || "");
-  const invoiceMatch = text.match(/[A-Z]{2}\d{8}/);
-  const amountCandidates = [...text.matchAll(/[:*]([0-9A-Fa-f]{8})[:*]/g)].map((match) => match[1]);
-  const taxIds = [...text.matchAll(/\b\d{8}\b/g)].map((match) => match[0]);
-  const rocDateMatch = text.match(/(?:[A-Z]{2}\d{8})(\d{7})/);
+  const text = String(raw || "").toUpperCase();
+  const compact = text.replace(/\s/g, "");
+  const fixedCandidates = [...compact.matchAll(/[A-Z]{2}\d{8}/g)]
+    .map((match) => parseTaiwanQrPayload(compact.slice(match.index)))
+    .filter((candidate) => Object.keys(removeEmpty(candidate)).length);
+  const completeCandidate = fixedCandidates.find(hasCoreInvoiceData);
+  if (completeCandidate) return completeCandidate;
+
+  const bestCandidate = fixedCandidates[0] || {};
+  const invoiceMatch = compact.match(/[A-Z]{2}\d{8}/);
+  const amountCandidates = [...text.matchAll(/[:*]([0-9A-F]{8})[:*]/g)].map((match) => match[1]);
+  const taxIds = [...compact.matchAll(/\d{8}/g)].map((match) => match[0]);
+  const targetTaxId = normalizeTaxId(settings.targetTaxId);
+  const rocDateMatch = compact.match(/(?:[A-Z]{2}\d{8})(\d{7})/);
   return {
-    invoiceNumber: invoiceMatch?.[0] || "",
-    invoiceDate: rocDateMatch ? rocToDate(rocDateMatch[1]) : "",
-    totalAmount: amountCandidates.length >= 2 ? String(parseInt(amountCandidates[1], 16)) : "",
-    buyerTaxId: taxIds.find((id) => id === settings.targetTaxId) || ""
+    invoiceNumber: bestCandidate.invoiceNumber || invoiceMatch?.[0] || "",
+    invoiceDate: bestCandidate.invoiceDate || (rocDateMatch ? rocToDate(rocDateMatch[1]) : ""),
+    totalAmount: bestCandidate.totalAmount || (amountCandidates.length >= 2 ? String(parseInt(amountCandidates[1], 16)) : ""),
+    buyerTaxId: bestCandidate.buyerTaxId || taxIds.find((id) => targetTaxId && id === targetTaxId) || ""
   };
+}
+
+function parseTaiwanQrPayload(payload) {
+  const invoiceNumber = payload.slice(0, 10);
+  const rocDate = payload.slice(10, 17);
+  const totalHex = payload.slice(29, 37);
+  const buyerTaxId = payload.slice(37, 45);
+  if (!/^[A-Z]{2}\d{8}$/.test(invoiceNumber) || !/^\d{7}$/.test(rocDate)) return {};
+
+  const parsed = {
+    invoiceNumber,
+    invoiceDate: rocToDate(rocDate),
+    totalAmount: "",
+    buyerTaxId: ""
+  };
+  if (/^[0-9A-F]{8}$/.test(totalHex)) {
+    const totalAmount = parseInt(totalHex, 16);
+    if (Number.isFinite(totalAmount) && totalAmount > 0) parsed.totalAmount = String(totalAmount);
+  }
+  if (/^\d{8}$/.test(buyerTaxId) && buyerTaxId !== "00000000") {
+    parsed.buyerTaxId = buyerTaxId;
+  }
+  return parsed;
 }
 
 function rocToDate(value) {
