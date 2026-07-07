@@ -16,72 +16,16 @@
           <p class="eyebrow">統編發票記錄</p>
           <h1>拍照、確認、加總</h1>
         </div>
-        <button class="icon-button" id="installButton" type="button" hidden title="安裝到手機">
-          <span aria-hidden="true">＋</span>
-        </button>
+        <button class="icon-button" id="installButton" type="button" hidden title="安裝到手機"><span aria-hidden="true">＋</span></button>
       </header>
-
-      <section class="summary-strip" aria-label="加總摘要">
-        <div><span>納入張數</span><strong id="includedCount">0</strong></div>
-        <div><span>加總金額</span><strong id="includedTotal">$0</strong></div>
-        <div><span>重複提示</span><strong id="duplicateCount">0</strong></div>
-      </section>
-
-      <nav class="tabs" aria-label="主要功能">
-        <button class="tab is-active" type="button" data-tab="scan">掃描</button>
-        <button class="tab" type="button" data-tab="records">記錄</button>
-        <button class="tab" type="button" data-tab="settings">設定</button>
-      </nav>
-
-      <section class="panel is-active" id="scanPanel">
-        <form id="scanForm" class="scan-form">
-          <label class="upload-zone">
-            <input id="imageInput" type="file" accept="image/*" capture="environment">
-            <span class="upload-icon">□</span>
-            <span>拍照或上傳發票</span>
-          </label>
-          <img id="previewImage" class="preview" alt="發票預覽" hidden>
-          <div class="actions">
-            <button class="primary" id="extractButton" type="submit" disabled>辨識發票</button>
-            <button class="secondary" id="manualButton" type="button">手動新增</button>
-          </div>
-        </form>
-
-        <form id="reviewForm" class="review-form" hidden>
-          <div class="status-line" id="reviewStatus">請確認辨識結果</div>
-          <label>發票號碼<input id="invoiceNumber" name="invoiceNumber" autocomplete="off" placeholder="AA12345678"></label>
-          <label>發票日期<input id="invoiceDate" name="invoiceDate" type="date"></label>
-          <label>單張總金額<input id="totalAmount" name="totalAmount" inputmode="numeric" pattern="[0-9]*" placeholder="0"></label>
-          <label>發票上的統編<input id="buyerTaxId" name="buyerTaxId" inputmode="numeric" pattern="[0-9]*" placeholder="8 位數統編"></label>
-          <div class="check-row"><span>統編是否正確</span><strong id="taxIdResult">未確認</strong></div>
-          <label class="toggle-row"><input id="includeInTotal" name="includeInTotal" type="checkbox"><span>納入加總</span></label>
-          <div class="warning" id="duplicateWarning" hidden></div>
-          <div class="actions">
-            <button class="primary" type="submit">儲存記錄</button>
-            <button class="secondary" id="clearReviewButton" type="button">清除</button>
-          </div>
-        </form>
-      </section>
-
-      <section class="panel" id="recordsPanel">
-        <div class="toolbar">
-          <button class="secondary" id="exportButton" type="button">更新匯出檔</button>
-          <label class="file-button">匯入既有檔<input id="importInput" type="file" accept=".csv,text/csv"></label>
-        </div>
-        <div id="recordList" class="record-list"></div>
-      </section>
-
-      <section class="panel" id="settingsPanel">
-        <form id="settingsForm" class="settings-form">
-          <label>指定統編<input id="targetTaxId" inputmode="numeric" pattern="[0-9]{8}" placeholder="請輸入 8 位數統編"></label>
-          <label>固定匯出檔名<input id="exportFilename" value="invoice-summary.csv"></label>
-          <button class="primary" type="submit">儲存設定</button>
-        </form>
-        <p class="note">iPhone/iPad 會下載或分享同一個固定檔名；存入 iCloud Drive 時請選擇取代原檔，App 內資料會持續更新同一份主記錄。</p>
-      </section>
+      <section class="summary-strip" aria-label="加總摘要"><div><span>納入張數</span><strong id="includedCount">0</strong></div><div><span>加總金額</span><strong id="includedTotal">$0</strong></div><div><span>重複提示</span><strong id="duplicateCount">0</strong></div></section>
+      <nav class="tabs" aria-label="主要功能"><button class="tab is-active" type="button" data-tab="scan">掃描</button><button class="tab" type="button" data-tab="records">記錄</button><button class="tab" type="button" data-tab="settings">設定</button></nav>
+      <section class="panel is-active" id="scanPanel"><form id="scanForm" class="scan-form"><label class="upload-zone"><input id="imageInput" type="file" accept="image/*" capture="environment"><span class="upload-icon">□</span><span>拍照或上傳發票</span></label><img id="previewImage" class="preview" alt="發票預覽" hidden><div class="actions"><button class="primary" id="extractButton" type="submit" disabled>辨識發票</button><button class="secondary" id="manualButton" type="button">手動新增</button></div></form><form id="reviewForm" class="review-form" hidden><div class="status-line" id="reviewStatus">請確認辨識結果</div><label>發票號碼<input id="invoiceNumber" name="invoiceNumber" autocomplete="off" placeholder="AA12345678"></label><label>發票日期<input id="invoiceDate" name="invoiceDate" type="date"></label><label>單張總金額<input id="totalAmount" name="totalAmount" inputmode="numeric" pattern="[0-9]*" placeholder="0"></label><label>發票上的統編<input id="buyerTaxId" name="buyerTaxId" inputmode="numeric" pattern="[0-9]*" placeholder="8 位數統編"></label><div class="check-row"><span>統編是否正確</span><strong id="taxIdResult">未確認</strong></div><label class="toggle-row"><input id="includeInTotal" name="includeInTotal" type="checkbox"><span>納入加總</span></label><div class="warning" id="duplicateWarning" hidden></div><div class="actions"><button class="primary" type="submit">儲存記錄</button><button class="secondary" id="clearReviewButton" type="button">清除</button></div></form></section>
+      <section class="panel" id="recordsPanel"><div class="toolbar"><button class="secondary" id="exportButton" type="button">更新匯出檔</button><label class="file-button">匯入既有檔<input id="importInput" type="file" accept=".csv,text/csv"></label></div><div id="recordList" class="record-list"></div></section>
+      <section class="panel" id="settingsPanel"><form id="settingsForm" class="settings-form"><label>指定統編<input id="targetTaxId" inputmode="numeric" pattern="[0-9]{8}" placeholder="請輸入 8 位數統編"></label><label>固定匯出檔名<input id="exportFilename" value="invoice-summary.csv"></label><button class="primary" type="submit">儲存設定</button></form><p class="note">iPhone/iPad 會下載或分享同一個固定檔名；存入 iCloud Drive 時請選擇取代原檔，App 內資料會持續更新同一份主記錄。</p></section>
     </main>
     <div class="toast" id="toast" role="status" hidden></div>
-    <script src="./jsQR.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="./qr-fallback.js"></script>
     <script src="./app.js" type="module"></script>
   </body>
