@@ -1,5 +1,5 @@
 (function () {
-  if ("BarcodeDetector" in window || typeof window.jsQR !== "function") return;
+  if (typeof window.jsQR !== "function") return;
 
   function sourceSize(source) {
     return {
@@ -8,7 +8,7 @@
     };
   }
 
-  function decodeCrop(source, crop) {
+  function drawCrop(source, crop) {
     const canvas = document.createElement("canvas");
     const maxSide = 1200;
     const scale = Math.min(1, maxSide / Math.max(crop.width, crop.height));
@@ -29,10 +29,33 @@
       canvas.height
     );
 
+    return { canvas, context };
+  }
+
+  function decodeCrop(source, crop) {
+    const { canvas, context } = drawCrop(source, crop);
     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
     return window.jsQR(imageData.data, imageData.width, imageData.height, {
       inversionAttempts: "attemptBoth"
     });
+  }
+
+  function decodeCropWithZXing(source, crop) {
+    if (!window.ZXing) return null;
+
+    const { canvas } = drawCrop(source, crop);
+    const zxing = window.ZXing;
+    const hints = new Map();
+    hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, [zxing.BarcodeFormat.QR_CODE]);
+    hints.set(zxing.DecodeHintType.TRY_HARDER, true);
+
+    try {
+      const luminance = new zxing.HTMLCanvasElementLuminanceSource(canvas);
+      const bitmap = new zxing.BinaryBitmap(new zxing.HybridBinarizer(luminance));
+      return new zxing.QRCodeReader().decode(bitmap, hints).getText();
+    } catch {
+      return null;
+    }
   }
 
   function candidateCrops(width, height) {
@@ -54,6 +77,33 @@
     ].filter((item) => item.width > 80 && item.height > 80);
   }
 
+  async function detectQrCodesWithJsQR(source) {
+    const { width, height } = sourceSize(source);
+    if (!width || !height) return [];
+
+    const results = [];
+    const seen = new Set();
+    for (const crop of candidateCrops(width, height)) {
+      const zxingResult = decodeCropWithZXing(source, crop);
+      if (zxingResult && !seen.has(zxingResult)) {
+        seen.add(zxingResult);
+        results.push({ rawValue: zxingResult, format: "qr_code" });
+      }
+
+      const result = decodeCrop(source, crop);
+      if (result?.data && !seen.has(result.data)) {
+        seen.add(result.data);
+        results.push({ rawValue: result.data, format: "qr_code" });
+      }
+    }
+
+    return results;
+  }
+
+  window.detectQrCodesWithJsQR = detectQrCodesWithJsQR;
+
+  if ("BarcodeDetector" in window) return;
+
   window.BarcodeDetector = class BarcodeDetector {
     constructor(options = {}) {
       this.formats = options.formats || ["qr_code"];
@@ -62,20 +112,7 @@
     async detect(source) {
       if (!this.formats.includes("qr_code")) return [];
 
-      const { width, height } = sourceSize(source);
-      if (!width || !height) return [];
-
-      const results = [];
-      const seen = new Set();
-      for (const crop of candidateCrops(width, height)) {
-        const result = decodeCrop(source, crop);
-        if (result?.data && !seen.has(result.data)) {
-          seen.add(result.data);
-          results.push({ rawValue: result.data, format: "qr_code" });
-        }
-      }
-
-      return results;
+      return detectQrCodesWithJsQR(source);
     }
   };
 })();

@@ -190,16 +190,24 @@ async function fileToDataUrl(file) {
 }
 
 async function detectBarcodeFromImage(file) {
-  if (!("BarcodeDetector" in window)) return {};
+  if (!("BarcodeDetector" in window) && typeof window.detectQrCodesWithJsQR !== "function") return {};
+  let bitmap;
   try {
-    const detector = new BarcodeDetector({ formats: ["qr_code"] });
-    const bitmap = await createImageBitmap(file);
-    const codes = await detector.detect(bitmap);
-    bitmap.close?.();
+    bitmap = await createImageBitmap(file);
+    let codes = [];
+    if ("BarcodeDetector" in window) {
+      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      codes = await detector.detect(bitmap);
+    }
+    if (!codes.length && typeof window.detectQrCodesWithJsQR === "function") {
+      codes = await window.detectQrCodesWithJsQR(bitmap);
+    }
     const raw = codes.map((code) => code.rawValue).filter(Boolean).join("\n");
     return parseTaiwanInvoiceQr(raw);
   } catch {
     return {};
+  } finally {
+    bitmap?.close?.();
   }
 }
 
@@ -253,7 +261,7 @@ async function extractInvoice() {
     const merged = { ...cloudData, ...removeEmpty(barcodeData) };
     merged.includeInTotal = normalizeTaxId(merged.buyerTaxId) === normalizeTaxId(settings.targetTaxId);
     const hasOfflineData = Object.keys(removeEmpty(barcodeData)).length > 0;
-    merged.status = hasOfflineData ? "已讀取 QR 資料，請確認" : "未讀取到 QR，請手動輸入";
+    merged.status = hasOfflineData ? "已讀取 QR 資料，請確認" : "未讀取到 QR，請近拍左側 QR 或手動輸入";
     if (result.ok && result.mode !== "manual") merged.status = "請確認辨識結果";
     if (result.ok && result.mode === "manual" && !hasOfflineData) merged.status = "未連接雲端辨識，請手動確認";
     setReviewValues(merged);

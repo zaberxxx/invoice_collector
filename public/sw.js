@@ -1,8 +1,10 @@
-const CACHE_NAME = "invoice-capture-v3";
+const CACHE_NAME = "invoice-capture-v5";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
+  "./zxing.js",
+  "./jsQR.js",
   "./qr-fallback.js",
   "./app.js",
   "./manifest.webmanifest",
