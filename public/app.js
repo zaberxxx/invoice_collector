@@ -12,6 +12,11 @@ const els = {
     settings: document.querySelector("#settingsPanel")
   },
   imageInput: document.querySelector("#imageInput"),
+  liveScanButton: document.querySelector("#liveScanButton"),
+  stopScanButton: document.querySelector("#stopScanButton"),
+  cameraPanel: document.querySelector("#cameraPanel"),
+  cameraPreview: document.querySelector("#cameraPreview"),
+  cameraStatus: document.querySelector("#cameraStatus"),
   previewImage: document.querySelector("#previewImage"),
   extractButton: document.querySelector("#extractButton"),
   manualButton: document.querySelector("#manualButton"),
@@ -48,6 +53,10 @@ let selectedImageDataUrl = "";
 let editingRecordId = "";
 let deferredInstallPrompt = null;
 let ocrWorkerPromise = null;
+let cameraStream = null;
+let liveScanTimer = 0;
+let liveScanBusy = false;
+let liveScanDetector = null;
 
 const OCR_TEXT_REGIONS = [
   { x: 0.07, y: 0.10, width: 0.86, height: 0.28 },
@@ -224,6 +233,117 @@ async function detectBarcodeFromImage(file) {
     return {};
   } finally {
     bitmap?.close?.();
+  }
+}
+
+async function detectQrCodesFromSource(source) {
+  let codes = [];
+  if ("BarcodeDetector" in window) {
+    try {
+      liveScanDetector ||= new BarcodeDetector({ formats: ["qr_code"] });
+      codes = await liveScanDetector.detect(source);
+    } catch {
+      codes = [];
+    }
+  }
+  if (!codes.length && typeof window.detectQrCodesWithJsQR === "function") {
+    codes = await window.detectQrCodesWithJsQR(source);
+  }
+  return codes;
+}
+
+function applyDetectedInvoice(data, status) {
+  const merged = removeEmpty(data);
+  merged.includeInTotal = normalizeTaxId(merged.buyerTaxId) === normalizeTaxId(settings.targetTaxId);
+  merged.status = status;
+  setReviewValues(merged);
+}
+
+async function startLiveScan() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showToast("此瀏覽器不支援即時相機掃描");
+    return;
+  }
+
+  stopLiveScan();
+  els.cameraPanel.hidden = false;
+  els.liveScanButton.disabled = true;
+  els.stopScanButton.hidden = false;
+  els.cameraStatus.textContent = "正在開啟相機";
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    });
+    els.cameraPreview.srcObject = cameraStream;
+    await els.cameraPreview.play();
+    els.cameraStatus.textContent = "請將左側 QR 放在框內";
+    scheduleLiveScan();
+  } catch (error) {
+    stopLiveScan();
+    showToast(error.name === "NotAllowedError" ? "相機權限被拒絕" : "無法開啟相機");
+  } finally {
+    els.liveScanButton.disabled = false;
+  }
+}
+
+function stopLiveScan() {
+  if (liveScanTimer) {
+    cancelAnimationFrame(liveScanTimer);
+    liveScanTimer = 0;
+  }
+  liveScanBusy = false;
+  cameraStream?.getTracks().forEach((track) => track.stop());
+  cameraStream = null;
+  if (els.cameraPreview) {
+    els.cameraPreview.pause();
+    els.cameraPreview.removeAttribute("srcObject");
+    els.cameraPreview.srcObject = null;
+  }
+  if (els.cameraPanel) els.cameraPanel.hidden = true;
+  if (els.stopScanButton) els.stopScanButton.hidden = true;
+  if (els.liveScanButton) els.liveScanButton.disabled = false;
+}
+
+function scheduleLiveScan() {
+  liveScanTimer = requestAnimationFrame(scanLiveFrame);
+}
+
+async function scanLiveFrame() {
+  if (!cameraStream || liveScanBusy) {
+    if (cameraStream) scheduleLiveScan();
+    return;
+  }
+  if (els.cameraPreview.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    scheduleLiveScan();
+    return;
+  }
+
+  liveScanBusy = true;
+  try {
+    const codes = await detectQrCodesFromSource(els.cameraPreview);
+    const raw = codes.map((code) => code.rawValue).filter(Boolean).join("\n");
+    const parsed = parseTaiwanInvoiceQr(raw);
+    if (Object.keys(removeEmpty(parsed)).length) {
+      stopLiveScan();
+      applyDetectedInvoice(parsed, "已即時讀取 QR，請確認");
+      showToast("已掃到發票 QR");
+      return;
+    }
+    els.cameraStatus.textContent = "掃描中，請靠近左側 QR";
+  } catch {
+    els.cameraStatus.textContent = "掃描中，請保持發票平整";
+  } finally {
+    liveScanBusy = false;
+  }
+
+  if (cameraStream) {
+    window.setTimeout(scheduleLiveScan, 160);
   }
 }
 
@@ -749,6 +869,7 @@ async function handleRecordAction(event) {
 }
 
 function setTab(name) {
+  if (name !== "scan") stopLiveScan();
   els.tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.tab === name));
   Object.entries(els.panels).forEach(([key, panel]) => panel.classList.toggle("is-active", key === name));
 }
@@ -767,6 +888,8 @@ function bindEvents() {
     event.preventDefault();
     extractInvoice();
   });
+  els.liveScanButton.addEventListener("click", startLiveScan);
+  els.stopScanButton.addEventListener("click", stopLiveScan);
   els.manualButton.addEventListener("click", () => setReviewValues({ status: "手動新增發票資料" }));
   els.reviewForm.addEventListener("submit", submitReview);
   els.clearReviewButton.addEventListener("click", clearReview);
@@ -814,6 +937,9 @@ function bindEvents() {
     await deferredInstallPrompt.userChoice;
     deferredInstallPrompt = null;
     els.installButton.hidden = true;
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopLiveScan();
   });
 }
 
