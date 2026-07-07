@@ -17,10 +17,22 @@
 
     const context = canvas.getContext("2d", { willReadFrequently: true });
     context.imageSmoothingEnabled = false;
-    context.drawImage(source, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
+    context.drawImage(
+      source,
+      crop.x,
+      crop.y,
+      crop.width,
+      crop.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
 
     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    return window.jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+    return window.jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: "attemptBoth"
+    });
   }
 
   function candidateCrops(width, height) {
@@ -49,6 +61,7 @@
 
     async detect(source) {
       if (!this.formats.includes("qr_code")) return [];
+
       const { width, height } = sourceSize(source);
       if (!width || !height) return [];
 
@@ -61,6 +74,7 @@
           results.push({ rawValue: result.data, format: "qr_code" });
         }
       }
+
       return results;
     }
   };
