@@ -49,6 +49,21 @@ let editingRecordId = "";
 let deferredInstallPrompt = null;
 let ocrWorkerPromise = null;
 
+const OCR_TEXT_REGIONS = [
+  { x: 0.07, y: 0.10, width: 0.86, height: 0.28 },
+  { x: 0.14, y: 0.18, width: 0.74, height: 0.24 },
+  { x: 0.05, y: 0.28, width: 0.90, height: 0.22 },
+  { x: 0.08, y: 0.34, width: 0.84, height: 0.18 },
+  { x: 0.06, y: 0.72, width: 0.88, height: 0.20 }
+];
+
+const OCR_AMOUNT_REGIONS = [
+  { x: 0.49, y: 0.30, width: 0.46, height: 0.16 },
+  { x: 0.52, y: 0.34, width: 0.38, height: 0.12 },
+  { x: 0.42, y: 0.29, width: 0.54, height: 0.22 },
+  { x: 0.58, y: 0.25, width: 0.36, height: 0.24 }
+];
+
 function openDb() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -245,9 +260,10 @@ function cropForOcr(source, region, scale = 2) {
   const sy = Math.round(region.y * sourceHeight);
   const sw = Math.round(region.width * sourceWidth);
   const sh = Math.round(region.height * sourceHeight);
+  const effectiveScale = Math.min(scale, 1800 / Math.max(sw, sh));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(sw * scale));
-  canvas.height = Math.max(1, Math.round(sh * scale));
+  canvas.width = Math.max(1, Math.round(sw * effectiveScale));
+  canvas.height = Math.max(1, Math.round(sh * effectiveScale));
 
   const context = canvas.getContext("2d", { willReadFrequently: true });
   context.imageSmoothingEnabled = true;
@@ -275,7 +291,31 @@ function cropForOcr(source, region, scale = 2) {
   return canvas;
 }
 
-function normalizeOcrDigits(text) {
+function buildOcrSheet(source, regions) {
+  const crops = regions.flatMap((region) => [
+    cropForOcr(source, region, 2),
+    cropForOcr(source, region, 2.6)
+  ]);
+  const gap = 28;
+  const margin = 18;
+  const width = Math.max(...crops.map((crop) => crop.width)) + margin * 2;
+  const height = crops.reduce((sum, crop) => sum + crop.height, margin * 2 + gap * (crops.length - 1));
+  const sheet = document.createElement("canvas");
+  sheet.width = width;
+  sheet.height = height;
+  const context = sheet.getContext("2d", { willReadFrequently: true });
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, sheet.width, sheet.height);
+
+  let y = margin;
+  for (const crop of crops) {
+    context.drawImage(crop, margin, y);
+    y += crop.height + gap;
+  }
+  return sheet;
+}
+
+function repairOcrDigits(text) {
   return String(text || "")
     .replace(/[Oo]/g, "0")
     .replace(/[Il|]/g, "1")
@@ -283,18 +323,37 @@ function normalizeOcrDigits(text) {
     .replace(/[ＳS]/g, "5");
 }
 
-function parseInvoiceOcr(topText, amountText) {
-  const top = normalizeOcrDigits(topText).toUpperCase();
-  const amount = normalizeOcrDigits(amountText).toUpperCase();
-  const allText = `${top}\n${amount}`;
-  const invoiceMatch = allText.match(/[A-Z]{2}\s*[- ]?\s*\d{7,8}/);
-  const dateMatch = allText.match(/20\d{2}[-/.]\d{2}[-/.]\d{2}/);
-  const digitRuns = [...allText.matchAll(/\d[\d,.\s]{1,12}\d/g)]
+function findInvoiceNumber(text) {
+  const normalized = String(text || "").toUpperCase().replace(/[^A-Z0-9\- ]/g, " ");
+  const matches = [...normalized.matchAll(/([A-Z]{2})\s*[- ]?\s*([0-9OILSB]{7,8})/g)];
+  const exact = matches
+    .map((match) => `${match[1]}${repairOcrDigits(match[2]).replace(/\D/g, "")}`)
+    .find((value) => /^[A-Z]{2}\d{8}$/.test(value));
+  return exact || "";
+}
+
+function normalizeOcrDate(value) {
+  const match = String(value || "").match(/(20\d{2})\s*[-/.]\s*(\d{1,2})\s*[-/.]\s*(\d{1,2})/);
+  if (!match) return "";
+  const [, year, month, day] = match;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
+function parseInvoiceOcr(textSheetText, amountSheetText) {
+  const top = String(textSheetText || "");
+  const amount = String(amountSheetText || "");
+  const repairedAllText = repairOcrDigits(`${top}\n${amount}`).toUpperCase();
+  const repairedAmount = repairOcrDigits(amount).toUpperCase();
+  const invoiceNumber = findInvoiceNumber(`${top}\n${amount}`);
+  const invoiceDate = normalizeOcrDate(repairedAllText);
+  const digitRuns = [...repairedAllText.matchAll(/\d[\d,.\s]{1,12}\d/g)]
     .map((match) => match[0].replace(/\D/g, ""))
     .filter(Boolean);
-  const amountRuns = [...amount.matchAll(/\d[\d,.\s]{1,12}\d/g)]
-    .map((match) => match[0].replace(/\D/g, ""))
-    .filter(Boolean);
+  const separatedAmountRuns = [...repairedAmount.matchAll(/[0-9]{1,3}[,.][0-9]{3}/g)]
+    .map((match) => ({ raw: match[0], digits: match[0].replace(/\D/g, ""), separated: true }));
+  const plainAmountRuns = [...repairedAmount.matchAll(/(^|[^0-9,.])([0-9]{3,7})(?![0-9,.])/g)]
+    .map((match) => ({ raw: match[2], digits: match[2], separated: false }));
+  const amountRuns = [...separatedAmountRuns, ...plainAmountRuns];
   const taxIds = digitRuns.flatMap((digits) => {
     const values = [];
     for (let index = 0; index <= digits.length - 8; index += 1) {
@@ -304,17 +363,31 @@ function parseInvoiceOcr(topText, amountText) {
   });
   const target = normalizeTaxId(settings.targetTaxId);
   const buyerTaxId = target && taxIds.includes(target) ? target : taxIds.at(-1) || "";
+  const invoiceDigits = invoiceNumber.replace(/\D/g, "");
   const amountCandidates = amountRuns
-    .filter((digits) => digits.length >= 3 && digits.length <= 7)
-    .map((digits) => Number(digits))
-    .filter((number) => number > 0);
+    .filter(({ raw, digits }) =>
+      digits.length >= 3 &&
+      digits.length <= 7 &&
+      !raw.includes(":") &&
+      (!invoiceDigits || !invoiceDigits.includes(digits))
+    )
+    .map(({ raw, digits, separated }) => ({
+      number: Number(digits),
+      score: (separated ? 30 : 0) + (raw.includes(",") ? 8 : 0) + (raw.includes(".") ? 5 : 0) - Math.max(0, digits.length - 5)
+    }))
+    .filter(({ number }) => number > 0 && number !== 3484)
+    .sort((a, b) => b.score - a.score || b.number - a.number);
 
   return {
-    invoiceNumber: invoiceMatch?.[0] || "",
-    invoiceDate: dateMatch?.[0]?.replace(/[/.]/g, "-") || "",
-    totalAmount: amountCandidates.length ? String(Math.max(...amountCandidates)) : "",
+    invoiceNumber,
+    invoiceDate,
+    totalAmount: amountCandidates.length ? String(amountCandidates[0].number) : "",
     buyerTaxId
   };
+}
+
+function hasCoreInvoiceData(data = {}) {
+  return Boolean(data.invoiceDate && data.totalAmount && data.buyerTaxId);
 }
 
 async function detectInvoiceTextFromImage(file) {
@@ -324,13 +397,12 @@ async function detectInvoiceTextFromImage(file) {
   let bitmap;
   try {
     bitmap = await createImageBitmap(file);
-    const topCanvas = cropForOcr(bitmap, { x: 0.17, y: 0.22, width: 0.62, height: 0.19 });
-    const amountCanvas = cropForOcr(bitmap, { x: 0.52, y: 0.35, width: 0.35, height: 0.11 });
-    const [{ data: topResult }, { data: amountResult }] = await Promise.all([
-      worker.recognize(topCanvas),
-      worker.recognize(amountCanvas)
-    ]);
-    return parseInvoiceOcr(topResult.text, amountResult.text);
+    const textSheet = buildOcrSheet(bitmap, OCR_TEXT_REGIONS);
+    const amountSheet = buildOcrSheet(bitmap, OCR_AMOUNT_REGIONS);
+    els.reviewStatus.textContent = "文字辨識中";
+    const { data: textResult } = await worker.recognize(textSheet);
+    const { data: amountResult } = await worker.recognize(amountSheet);
+    return parseInvoiceOcr(textResult.text, amountResult.text);
   } catch {
     return {};
   } finally {
@@ -367,7 +439,7 @@ async function extractInvoice() {
   els.extractButton.textContent = "辨識中";
 
   const barcodeData = await detectBarcodeFromImage(file);
-  const textData = Object.keys(removeEmpty(barcodeData)).length ? {} : await detectInvoiceTextFromImage(file);
+  const textData = hasCoreInvoiceData(barcodeData) ? {} : await detectInvoiceTextFromImage(file);
   let result = { ok: false, mode: "offline", extracted: {}, error: "" };
 
   try {
