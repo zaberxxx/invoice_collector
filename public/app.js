@@ -3,8 +3,11 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
+const APP_VERSION = "2026.07.07-qr-diagnostics";
+const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
+  appVersion: document.querySelector("#appVersion"),
   tabs: document.querySelectorAll(".tab"),
   panels: {
     scan: document.querySelector("#scanPanel"),
@@ -40,6 +43,7 @@ const els = {
   exportFilename: document.querySelector("#exportFilename"),
   exportButton: document.querySelector("#exportButton"),
   importInput: document.querySelector("#importInput"),
+  scanDebug: document.querySelector("#scanDebug"),
   toast: document.querySelector("#toast"),
   installButton: document.querySelector("#installButton")
 };
@@ -57,6 +61,8 @@ let cameraStream = null;
 let liveScanTimer = 0;
 let liveScanBusy = false;
 let liveScanDetector = null;
+let liveQrHistory = [];
+let lastImageQrRaw = "";
 
 const OCR_TEXT_REGIONS = [
   { x: 0.07, y: 0.10, width: 0.86, height: 0.28 },
@@ -132,6 +138,42 @@ function showToast(message) {
   showToast.timer = setTimeout(() => {
     els.toast.hidden = true;
   }, 2800);
+}
+
+function setScanDebug(message = "") {
+  if (!els.scanDebug) return;
+  els.scanDebug.hidden = !message;
+  els.scanDebug.textContent = message;
+}
+
+function scanDebugMessage(source, raw, parsed = {}) {
+  const fields = [
+    parsed.invoiceNumber ? "號碼" : "",
+    parsed.invoiceDate ? "日期" : "",
+    parsed.totalAmount ? "金額" : "",
+    parsed.buyerTaxId ? "統編" : ""
+  ].filter(Boolean);
+  const missing = [
+    parsed.invoiceNumber ? "" : "號碼",
+    parsed.invoiceDate ? "" : "日期",
+    parsed.totalAmount ? "" : "金額",
+    parsed.buyerTaxId ? "" : "統編"
+  ].filter(Boolean);
+  const rawLength = String(raw || "").replace(/\s/g, "").length;
+  return `版本 ${APP_VERSION}｜${source}｜QR ${rawLength || 0} 字｜已抓 ${fields.join("/") || "無"}｜缺 ${missing.join("/") || "無"}`;
+}
+
+function rememberLiveQrRaw(raw) {
+  const values = String(raw || "")
+    .split(/\n+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  for (const value of values) {
+    liveQrHistory = liveQrHistory.filter((item) => item !== value);
+    liveQrHistory.unshift(value);
+  }
+  liveQrHistory = liveQrHistory.slice(0, LIVE_QR_HISTORY_LIMIT);
+  return liveQrHistory.join("\n");
 }
 
 function currency(value) {
@@ -228,7 +270,10 @@ async function detectBarcodeFromImage(file) {
       codes = await window.detectQrCodesWithJsQR(bitmap);
     }
     const raw = codes.map((code) => code.rawValue).filter(Boolean).join("\n");
-    return parseTaiwanInvoiceQr(raw);
+    lastImageQrRaw = raw;
+    const parsed = parseTaiwanInvoiceQr(raw);
+    setScanDebug(scanDebugMessage("照片 QR", raw, parsed));
+    return parsed;
   } catch {
     return {};
   } finally {
@@ -266,6 +311,8 @@ async function startLiveScan() {
   }
 
   stopLiveScan();
+  liveQrHistory = [];
+  setScanDebug(scanDebugMessage("即時掃描", "", {}));
   els.cameraPanel.hidden = false;
   els.liveScanButton.disabled = true;
   els.stopScanButton.hidden = false;
@@ -328,7 +375,9 @@ async function scanLiveFrame() {
   try {
     const codes = await detectQrCodesFromSource(els.cameraPreview);
     const raw = codes.map((code) => code.rawValue).filter(Boolean).join("\n");
-    const parsed = parseTaiwanInvoiceQr(raw);
+    const combinedRaw = rememberLiveQrRaw(raw);
+    const parsed = parseTaiwanInvoiceQr(combinedRaw);
+    setScanDebug(scanDebugMessage("即時掃描", combinedRaw, parsed));
     if (hasCoreInvoiceData(parsed)) {
       stopLiveScan();
       applyDetectedInvoice(parsed, "已即時讀取 QR，請確認");
@@ -593,6 +642,8 @@ async function extractInvoice() {
   if (!file) return;
   els.extractButton.disabled = true;
   els.extractButton.textContent = "辨識中";
+  lastImageQrRaw = "";
+  setScanDebug(scanDebugMessage("照片辨識", "", {}));
 
   const barcodeData = await detectBarcodeFromImage(file);
   const textData = hasCoreInvoiceData(barcodeData) ? {} : await detectInvoiceTextFromImage(file);
@@ -622,6 +673,7 @@ async function extractInvoice() {
     if (!hasOfflineData && !hasTextData) merged.status = "未讀取到資料，請近拍左側 QR 或手動輸入";
     if (result.ok && result.mode !== "manual") merged.status = "請確認辨識結果";
     if (result.ok && result.mode === "manual" && !hasOfflineData && !hasTextData) merged.status = "未連接雲端辨識，請手動確認";
+    if (!hasCoreInvoiceData(merged)) setScanDebug(scanDebugMessage(hasOfflineData ? "照片 QR/OCR" : "照片 OCR", lastImageQrRaw, merged));
     setReviewValues(merged);
     els.extractButton.disabled = false;
     els.extractButton.textContent = "辨識發票";
@@ -980,6 +1032,7 @@ function bindEvents() {
 }
 
 async function init() {
+  if (els.appVersion) els.appVersion.textContent = `版本 ${APP_VERSION}`;
   db = await openDb();
   await loadSettings();
   bindEvents();

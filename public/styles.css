@@ -49,6 +49,12 @@ input {
   font-size: 13px;
 }
 
+.app-version {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 h1 {
   margin: 0;
   font-size: 28px;
@@ -278,13 +284,22 @@ input {
 
 .status-line,
 .warning,
-.note {
+.note,
+.scan-debug {
   padding: 11px 12px;
   border-radius: 8px;
   background: #fff6df;
   color: #6f4b12;
   font-size: 14px;
   line-height: 1.45;
+}
+
+.scan-debug {
+  background: #edf7f4;
+  color: #214e46;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .warning {
