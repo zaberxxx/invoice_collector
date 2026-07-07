@@ -1,8 +1,19 @@
-const CACHE_NAME = "invoice-capture-v5";
+const CACHE_NAME = "invoice-capture-v6";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
+  "./tesseract/tesseract.min.js",
+  "./tesseract/worker.min.js",
+  "./tesseract/tesseract-core.wasm.js",
+  "./tesseract/tesseract-core.wasm",
+  "./tesseract/tesseract-core-simd.wasm.js",
+  "./tesseract/tesseract-core-simd.wasm",
+  "./tesseract/tesseract-core-lstm.wasm.js",
+  "./tesseract/tesseract-core-lstm.wasm",
+  "./tesseract/tesseract-core-simd-lstm.wasm.js",
+  "./tesseract/tesseract-core-simd-lstm.wasm",
+  "./tessdata/eng.traineddata.gz",
   "./zxing.js",
   "./jsQR.js",
   "./qr-fallback.js",

@@ -47,6 +47,7 @@ let settings = {
 let selectedImageDataUrl = "";
 let editingRecordId = "";
 let deferredInstallPrompt = null;
+let ocrWorkerPromise = null;
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -211,6 +212,132 @@ async function detectBarcodeFromImage(file) {
   }
 }
 
+async function getOcrWorker() {
+  if (!window.Tesseract?.createWorker) return null;
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = window.Tesseract.createWorker("eng", 1, {
+      workerPath: "./tesseract/worker.min.js",
+      corePath: "./tesseract",
+      langPath: "./tessdata",
+      gzip: true,
+      logger: (message) => {
+        if (message.status === "recognizing text") {
+          els.reviewStatus.textContent = `文字辨識中 ${Math.round(message.progress * 100)}%`;
+        }
+      }
+    }).then(async (worker) => {
+      await worker.setParameters({
+        tessedit_pageseg_mode: window.Tesseract.PSM.SINGLE_BLOCK,
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-:,.年月日總計賣方買方統編營業人 ",
+        preserve_interword_spaces: "1",
+        user_defined_dpi: "240"
+      });
+      return worker;
+    });
+  }
+  return ocrWorkerPromise;
+}
+
+function cropForOcr(source, region, scale = 2) {
+  const sourceWidth = source.width || source.videoWidth || source.naturalWidth;
+  const sourceHeight = source.height || source.videoHeight || source.naturalHeight;
+  const sx = Math.round(region.x * sourceWidth);
+  const sy = Math.round(region.y * sourceHeight);
+  const sw = Math.round(region.width * sourceWidth);
+  const sh = Math.round(region.height * sourceHeight);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sw * scale));
+  canvas.height = Math.max(1, Math.round(sh * scale));
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.imageSmoothingEnabled = true;
+  context.drawImage(source, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  let min = 255;
+  let max = 0;
+  for (let index = 0; index < image.data.length; index += 4) {
+    const gray = Math.round(image.data[index] * 0.299 + image.data[index + 1] * 0.587 + image.data[index + 2] * 0.114);
+    min = Math.min(min, gray);
+    max = Math.max(max, gray);
+    image.data[index] = gray;
+    image.data[index + 1] = gray;
+    image.data[index + 2] = gray;
+  }
+  const range = Math.max(1, max - min);
+  for (let index = 0; index < image.data.length; index += 4) {
+    const value = Math.max(0, Math.min(255, Math.round(((image.data[index] - min) / range) * 255)));
+    image.data[index] = value;
+    image.data[index + 1] = value;
+    image.data[index + 2] = value;
+  }
+  context.putImageData(image, 0, 0);
+  return canvas;
+}
+
+function normalizeOcrDigits(text) {
+  return String(text || "")
+    .replace(/[Oo]/g, "0")
+    .replace(/[Il|]/g, "1")
+    .replace(/[ＢB]/g, "8")
+    .replace(/[ＳS]/g, "5");
+}
+
+function parseInvoiceOcr(topText, amountText) {
+  const top = normalizeOcrDigits(topText).toUpperCase();
+  const amount = normalizeOcrDigits(amountText).toUpperCase();
+  const allText = `${top}\n${amount}`;
+  const invoiceMatch = allText.match(/[A-Z]{2}\s*[- ]?\s*\d{7,8}/);
+  const dateMatch = allText.match(/20\d{2}[-/.]\d{2}[-/.]\d{2}/);
+  const digitRuns = [...allText.matchAll(/\d[\d,.\s]{1,12}\d/g)]
+    .map((match) => match[0].replace(/\D/g, ""))
+    .filter(Boolean);
+  const amountRuns = [...amount.matchAll(/\d[\d,.\s]{1,12}\d/g)]
+    .map((match) => match[0].replace(/\D/g, ""))
+    .filter(Boolean);
+  const taxIds = digitRuns.flatMap((digits) => {
+    const values = [];
+    for (let index = 0; index <= digits.length - 8; index += 1) {
+      values.push(digits.slice(index, index + 8));
+    }
+    return values;
+  });
+  const target = normalizeTaxId(settings.targetTaxId);
+  const buyerTaxId = target && taxIds.includes(target) ? target : taxIds.at(-1) || "";
+  const amountCandidates = amountRuns
+    .filter((digits) => digits.length >= 3 && digits.length <= 7)
+    .map((digits) => Number(digits))
+    .filter((number) => number > 0);
+
+  return {
+    invoiceNumber: invoiceMatch?.[0] || "",
+    invoiceDate: dateMatch?.[0]?.replace(/[/.]/g, "-") || "",
+    totalAmount: amountCandidates.length ? String(Math.max(...amountCandidates)) : "",
+    buyerTaxId
+  };
+}
+
+async function detectInvoiceTextFromImage(file) {
+  const worker = await getOcrWorker();
+  if (!worker) return {};
+
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+    const topCanvas = cropForOcr(bitmap, { x: 0.17, y: 0.22, width: 0.62, height: 0.19 });
+    const amountCanvas = cropForOcr(bitmap, { x: 0.52, y: 0.35, width: 0.35, height: 0.11 });
+    const [{ data: topResult }, { data: amountResult }] = await Promise.all([
+      worker.recognize(topCanvas),
+      worker.recognize(amountCanvas)
+    ]);
+    return parseInvoiceOcr(topResult.text, amountResult.text);
+  } catch {
+    return {};
+  } finally {
+    bitmap?.close?.();
+  }
+}
+
 function parseTaiwanInvoiceQr(raw) {
   const text = String(raw || "");
   const invoiceMatch = text.match(/[A-Z]{2}\d{8}/);
@@ -240,6 +367,7 @@ async function extractInvoice() {
   els.extractButton.textContent = "辨識中";
 
   const barcodeData = await detectBarcodeFromImage(file);
+  const textData = Object.keys(removeEmpty(barcodeData)).length ? {} : await detectInvoiceTextFromImage(file);
   let result = { ok: false, mode: "offline", extracted: {}, error: "" };
 
   try {
@@ -258,12 +386,14 @@ async function extractInvoice() {
     result.error = error.message || "";
   } finally {
     const cloudData = result.ok ? result.extracted : {};
-    const merged = { ...cloudData, ...removeEmpty(barcodeData) };
+    const merged = { ...cloudData, ...removeEmpty(textData), ...removeEmpty(barcodeData) };
     merged.includeInTotal = normalizeTaxId(merged.buyerTaxId) === normalizeTaxId(settings.targetTaxId);
     const hasOfflineData = Object.keys(removeEmpty(barcodeData)).length > 0;
-    merged.status = hasOfflineData ? "已讀取 QR 資料，請確認" : "未讀取到 QR，請近拍左側 QR 或手動輸入";
+    const hasTextData = Object.keys(removeEmpty(textData)).length > 0;
+    merged.status = hasOfflineData ? "已讀取 QR 資料，請確認" : "未讀取到 QR，已改用文字辨識";
+    if (!hasOfflineData && !hasTextData) merged.status = "未讀取到資料，請近拍左側 QR 或手動輸入";
     if (result.ok && result.mode !== "manual") merged.status = "請確認辨識結果";
-    if (result.ok && result.mode === "manual" && !hasOfflineData) merged.status = "未連接雲端辨識，請手動確認";
+    if (result.ok && result.mode === "manual" && !hasOfflineData && !hasTextData) merged.status = "未連接雲端辨識，請手動確認";
     setReviewValues(merged);
     els.extractButton.disabled = false;
     els.extractButton.textContent = "辨識發票";
