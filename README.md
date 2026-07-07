@@ -35,6 +35,7 @@ HOST=0.0.0.0 node server.js
 
 - 不一定需要 LLM API key。
 - App 會先用瀏覽器的 `BarcodeDetector` 嘗試離線讀電子發票 QR Code。
+- 若手機瀏覽器不支援 `BarcodeDetector`，會改用 jsQR fallback 讀取照片中的 QR Code。
 - 純靜態部署時沒有後端 API，仍可離線讀 QR；讀不到時手動輸入。
 - 若自行部署 `server.js` 並設定 `OPENAI_API_KEY`，後端才會呼叫雲端視覺辨識輔助讀取照片。
 - 若沒有 `OPENAI_API_KEY`，仍可手動新增、校正、檢查統編、提示重複、加總與匯出。
