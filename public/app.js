@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.08-stable-frame";
+const APP_VERSION = "2026.07.08-freeze-frame";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -17,6 +17,7 @@ const els = {
   liveScanButton: document.querySelector("#liveScanButton"),
   cameraPanel: document.querySelector("#cameraPanel"),
   cameraPreview: document.querySelector("#cameraPreview"),
+  cameraFreeze: document.querySelector("#cameraFreeze"),
   cameraStatus: document.querySelector("#cameraStatus"),
   manualButton: document.querySelector("#manualButton"),
   reviewForm: document.querySelector("#reviewForm"),
@@ -221,6 +222,12 @@ function toggleLiveScan() {
   else startLiveScan();
 }
 
+function hasCompleteMatchedInvoice(data = {}) {
+  const target = normalizeTaxId(settings.targetTaxId);
+  const buyer = normalizeTaxId(data.buyerTaxId);
+  return Boolean(data.invoiceNumber && data.invoiceDate && data.totalAmount && target && buyer && target === buyer);
+}
+
 async function startLiveScan() {
   if (!navigator.mediaDevices?.getUserMedia) {
     showToast("此瀏覽器不支援即時相機掃描");
@@ -231,6 +238,8 @@ async function startLiveScan() {
   liveQrHistory = [];
   els.cameraPanel.hidden = false;
   els.cameraPanel.classList.remove("is-idle");
+  els.cameraPanel.classList.remove("is-frozen", "is-complete");
+  if (els.cameraFreeze) els.cameraFreeze.hidden = true;
   els.liveScanButton.disabled = true;
   els.liveScanButton.textContent = "正在開啟";
   els.cameraStatus.textContent = "正在開啟相機";
@@ -272,21 +281,38 @@ function stopLiveScan() {
   }
   if (els.cameraPanel) {
     els.cameraPanel.hidden = false;
+    els.cameraPanel.classList.remove("is-frozen", "is-complete");
     els.cameraPanel.classList.add("is-idle");
   }
+  if (els.cameraFreeze) els.cameraFreeze.hidden = true;
   if (els.liveScanButton) els.liveScanButton.disabled = false;
   setLiveScanButton(false);
 }
 
-function pauseLiveScanForReview() {
+function freezeLiveScanForReview(data) {
   if (liveScanTimer) {
     cancelAnimationFrame(liveScanTimer);
     liveScanTimer = 0;
   }
   liveScanBusy = false;
-  if (els.cameraStatus) els.cameraStatus.textContent = "已掃到 QR，請確認下方資料";
+  const width = els.cameraPreview.videoWidth || els.cameraPreview.clientWidth || 1;
+  const height = els.cameraPreview.videoHeight || els.cameraPreview.clientHeight || 1;
+  if (els.cameraFreeze && width && height) {
+    els.cameraFreeze.width = width;
+    els.cameraFreeze.height = height;
+    els.cameraFreeze.getContext("2d")?.drawImage(els.cameraPreview, 0, 0, width, height);
+    els.cameraFreeze.hidden = false;
+  }
+  cameraStream?.getTracks().forEach((track) => track.stop());
+  cameraStream = null;
+  els.cameraPreview.pause();
+  els.cameraPreview.removeAttribute("srcObject");
+  els.cameraPreview.srcObject = null;
+  els.cameraPanel.classList.remove("is-idle");
+  els.cameraPanel.classList.add("is-frozen");
+  els.cameraPanel.classList.toggle("is-complete", hasCompleteMatchedInvoice(data));
   if (els.liveScanButton) els.liveScanButton.disabled = false;
-  setLiveScanButton(true);
+  setLiveScanButton(false);
 }
 
 function scheduleLiveScan() {
@@ -310,9 +336,8 @@ async function scanLiveFrame() {
     const combinedRaw = rememberLiveQrRaw(raw);
     const parsed = parseTaiwanInvoiceQr(combinedRaw);
     if (hasCoreInvoiceData(parsed)) {
-      pauseLiveScanForReview();
+      freezeLiveScanForReview(parsed);
       applyDetectedInvoice(parsed, "已即時讀取 QR，請確認");
-      showToast("已掃到發票 QR");
       return;
     }
     if (Object.keys(removeEmpty(parsed)).length) {

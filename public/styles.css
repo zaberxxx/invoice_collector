@@ -108,7 +108,8 @@ input {
 }
 
 .tab {
-  height: 42px;
+  height: 34px;
+  min-height: 34px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -154,25 +155,34 @@ input {
   box-shadow: var(--shadow);
 }
 
-.camera-panel video {
+.camera-panel.is-complete {
+  border-color: var(--ok);
+  box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.18), var(--shadow);
+}
+
+.camera-panel video,
+.camera-freeze {
   display: block;
   width: 100%;
   height: clamp(112px, 19vh, 180px);
   object-fit: cover;
 }
 
+.camera-freeze {
+  background: #050505;
+}
+
 .camera-panel.is-idle video,
-.camera-panel.is-idle .scan-frame,
 .camera-panel.is-idle .camera-status {
   visibility: hidden;
 }
 
-.scan-frame {
-  position: absolute;
-  inset: 20% 18%;
-  border: 3px solid rgba(255, 255, 255, 0.86);
-  border-radius: 8px;
-  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.22);
+.camera-panel.is-frozen video {
+  display: none;
+}
+
+.camera-panel.is-frozen .camera-status {
+  display: none;
 }
 
 .camera-status {
@@ -275,6 +285,7 @@ input {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
+  margin-top: 4px;
 }
 
 .review-field {
