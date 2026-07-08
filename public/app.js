@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.08-frame-fix";
+const APP_VERSION = "2026.07.08-icon-scan";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -25,6 +25,7 @@ const els = {
   invoiceDate: document.querySelector("#invoiceDate"),
   totalAmount: document.querySelector("#totalAmount"),
   buyerTaxId: document.querySelector("#buyerTaxId"),
+  taxIdValue: document.querySelector("#taxIdValue"),
   taxIdResult: document.querySelector("#taxIdResult"),
   duplicateWarning: document.querySelector("#duplicateWarning"),
   clearReviewButton: document.querySelector("#clearReviewButton"),
@@ -156,6 +157,7 @@ function toNumberString(value) {
 function updateTaxResult() {
   const target = normalizeTaxId(settings.targetTaxId);
   const buyer = normalizeTaxId(els.buyerTaxId.value);
+  if (els.taxIdValue) els.taxIdValue.textContent = buyer || "未辨識";
   if (!target) {
     els.taxIdResult.textContent = "尚未設定";
     els.taxIdResult.className = "";
@@ -213,7 +215,9 @@ function applyDetectedInvoice(data, status) {
 
 function setLiveScanButton(active) {
   if (!els.liveScanButton) return;
-  els.liveScanButton.textContent = active ? "停止掃描" : "即時掃 QR";
+  const label = active ? "停止掃描" : "即時掃描 QR";
+  els.liveScanButton.setAttribute("aria-label", label);
+  els.liveScanButton.setAttribute("title", label);
   els.liveScanButton.classList.toggle("is-stop", active);
 }
 
@@ -241,7 +245,8 @@ async function startLiveScan() {
   els.cameraPanel.classList.remove("is-frozen", "is-complete");
   if (els.cameraFreeze) els.cameraFreeze.hidden = true;
   els.liveScanButton.disabled = true;
-  els.liveScanButton.textContent = "正在開啟";
+  els.liveScanButton.setAttribute("aria-label", "正在開啟相機");
+  els.liveScanButton.setAttribute("title", "正在開啟相機");
   els.cameraStatus.textContent = "正在開啟相機";
 
   try {
