@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.08-live-only";
+const APP_VERSION = "2026.07.08-live-compact";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -14,16 +14,12 @@ const els = {
     records: document.querySelector("#recordsPanel"),
     settings: document.querySelector("#settingsPanel")
   },
-  imageInput: document.querySelector("#imageInput"),
   liveScanButton: document.querySelector("#liveScanButton"),
   stopScanButton: document.querySelector("#stopScanButton"),
   cameraPanel: document.querySelector("#cameraPanel"),
   cameraPreview: document.querySelector("#cameraPreview"),
   cameraStatus: document.querySelector("#cameraStatus"),
-  previewImage: document.querySelector("#previewImage"),
-  extractButton: document.querySelector("#extractButton"),
   manualButton: document.querySelector("#manualButton"),
-  scanForm: document.querySelector("#scanForm"),
   reviewForm: document.querySelector("#reviewForm"),
   reviewStatus: document.querySelector("#reviewStatus"),
   invoiceNumber: document.querySelector("#invoiceNumber"),
@@ -42,6 +38,7 @@ const els = {
   targetTaxId: document.querySelector("#targetTaxId"),
   exportFilename: document.querySelector("#exportFilename"),
   exportButton: document.querySelector("#exportButton"),
+  clearRecordsButton: document.querySelector("#clearRecordsButton"),
   importInput: document.querySelector("#importInput"),
   scanDebug: document.querySelector("#scanDebug"),
   toast: document.querySelector("#toast"),
@@ -53,31 +50,13 @@ let settings = {
   targetTaxId: "",
   exportFilename: DEFAULT_FILENAME
 };
-let selectedImageDataUrl = "";
 let editingRecordId = "";
 let deferredInstallPrompt = null;
-let ocrWorkerPromise = null;
 let cameraStream = null;
 let liveScanTimer = 0;
 let liveScanBusy = false;
 let liveScanDetector = null;
 let liveQrHistory = [];
-let lastImageQrRaw = "";
-
-const OCR_TEXT_REGIONS = [
-  { x: 0.07, y: 0.10, width: 0.86, height: 0.28 },
-  { x: 0.14, y: 0.18, width: 0.74, height: 0.24 },
-  { x: 0.05, y: 0.28, width: 0.90, height: 0.22 },
-  { x: 0.08, y: 0.34, width: 0.84, height: 0.18 },
-  { x: 0.06, y: 0.72, width: 0.88, height: 0.20 }
-];
-
-const OCR_AMOUNT_REGIONS = [
-  { x: 0.49, y: 0.30, width: 0.46, height: 0.16 },
-  { x: 0.52, y: 0.34, width: 0.38, height: 0.12 },
-  { x: 0.42, y: 0.29, width: 0.54, height: 0.22 },
-  { x: 0.58, y: 0.25, width: 0.36, height: 0.24 }
-];
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -118,6 +97,10 @@ async function saveRecord(record) {
 
 async function deleteRecord(id) {
   return requestToPromise(tx(STORE_RECORDS, "readwrite").delete(id));
+}
+
+async function clearAllRecords() {
+  return requestToPromise(tx(STORE_RECORDS, "readwrite").clear());
 }
 
 async function saveSettings() {
@@ -238,49 +221,10 @@ function setReviewValues(data = {}) {
 
 function clearReview() {
   editingRecordId = "";
-  selectedImageDataUrl = "";
-  if (els.imageInput) els.imageInput.value = "";
-  if (els.previewImage) {
-    els.previewImage.hidden = true;
-    els.previewImage.removeAttribute("src");
-  }
+  stopLiveScan();
   setReviewValues({ status: "請輸入或辨識發票資料" });
   els.reviewForm.hidden = true;
   els.duplicateWarning.hidden = true;
-}
-
-async function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-async function detectBarcodeFromImage(file) {
-  if (!("BarcodeDetector" in window) && typeof window.detectQrCodesWithJsQR !== "function") return {};
-  let bitmap;
-  try {
-    bitmap = await createImageBitmap(file);
-    let codes = [];
-    if ("BarcodeDetector" in window) {
-      const detector = new BarcodeDetector({ formats: ["qr_code"] });
-      codes = await detector.detect(bitmap);
-    }
-    if (!codes.length && typeof window.detectQrCodesWithJsQR === "function") {
-      codes = await window.detectQrCodesWithJsQR(bitmap);
-    }
-    const raw = codes.map((code) => code.rawValue).filter(Boolean).join("\n");
-    lastImageQrRaw = raw;
-    const parsed = parseTaiwanInvoiceQr(raw);
-    setScanDebug(scanDebugMessage("照片 QR", raw, parsed));
-    return parsed;
-  } catch {
-    return {};
-  } finally {
-    bitmap?.close?.();
-  }
 }
 
 async function detectQrCodesFromSource(source) {
@@ -359,6 +303,17 @@ function stopLiveScan() {
   if (els.liveScanButton) els.liveScanButton.disabled = false;
 }
 
+function pauseLiveScanForReview() {
+  if (liveScanTimer) {
+    cancelAnimationFrame(liveScanTimer);
+    liveScanTimer = 0;
+  }
+  liveScanBusy = false;
+  if (els.cameraStatus) els.cameraStatus.textContent = "已掃到 QR，請確認下方資料";
+  if (els.stopScanButton) els.stopScanButton.hidden = false;
+  if (els.liveScanButton) els.liveScanButton.disabled = false;
+}
+
 function scheduleLiveScan() {
   liveScanTimer = requestAnimationFrame(scanLiveFrame);
 }
@@ -381,7 +336,7 @@ async function scanLiveFrame() {
     const parsed = parseTaiwanInvoiceQr(combinedRaw);
     setScanDebug(scanDebugMessage("即時掃描", combinedRaw, parsed));
     if (hasCoreInvoiceData(parsed)) {
-      stopLiveScan();
+      pauseLiveScanForReview();
       applyDetectedInvoice(parsed, "已即時讀取 QR，請確認");
       showToast("已掃到發票 QR");
       return;
@@ -402,187 +357,8 @@ async function scanLiveFrame() {
   }
 }
 
-async function getOcrWorker() {
-  if (!window.Tesseract?.createWorker) return null;
-  if (!ocrWorkerPromise) {
-    ocrWorkerPromise = window.Tesseract.createWorker("eng", 1, {
-      workerPath: "./tesseract/worker.min.js",
-      corePath: "./tesseract",
-      langPath: "./tessdata",
-      gzip: true,
-      logger: (message) => {
-        if (message.status === "recognizing text") {
-          els.reviewStatus.textContent = `文字辨識中 ${Math.round(message.progress * 100)}%`;
-        }
-      }
-    }).then(async (worker) => {
-      await worker.setParameters({
-        tessedit_pageseg_mode: window.Tesseract.PSM.SINGLE_BLOCK,
-        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-:,.年月日總計賣方買方統編營業人 ",
-        preserve_interword_spaces: "1",
-        user_defined_dpi: "240"
-      });
-      return worker;
-    });
-  }
-  return ocrWorkerPromise;
-}
-
-function cropForOcr(source, region, scale = 2) {
-  const sourceWidth = source.width || source.videoWidth || source.naturalWidth;
-  const sourceHeight = source.height || source.videoHeight || source.naturalHeight;
-  const sx = Math.round(region.x * sourceWidth);
-  const sy = Math.round(region.y * sourceHeight);
-  const sw = Math.round(region.width * sourceWidth);
-  const sh = Math.round(region.height * sourceHeight);
-  const effectiveScale = Math.min(scale, 1800 / Math.max(sw, sh));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(sw * effectiveScale));
-  canvas.height = Math.max(1, Math.round(sh * effectiveScale));
-
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  context.imageSmoothingEnabled = true;
-  context.drawImage(source, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-
-  const image = context.getImageData(0, 0, canvas.width, canvas.height);
-  let min = 255;
-  let max = 0;
-  for (let index = 0; index < image.data.length; index += 4) {
-    const gray = Math.round(image.data[index] * 0.299 + image.data[index + 1] * 0.587 + image.data[index + 2] * 0.114);
-    min = Math.min(min, gray);
-    max = Math.max(max, gray);
-    image.data[index] = gray;
-    image.data[index + 1] = gray;
-    image.data[index + 2] = gray;
-  }
-  const range = Math.max(1, max - min);
-  for (let index = 0; index < image.data.length; index += 4) {
-    const value = Math.max(0, Math.min(255, Math.round(((image.data[index] - min) / range) * 255)));
-    image.data[index] = value;
-    image.data[index + 1] = value;
-    image.data[index + 2] = value;
-  }
-  context.putImageData(image, 0, 0);
-  return canvas;
-}
-
-function buildOcrSheet(source, regions) {
-  const crops = regions.flatMap((region) => [
-    cropForOcr(source, region, 2),
-    cropForOcr(source, region, 2.6)
-  ]);
-  const gap = 28;
-  const margin = 18;
-  const width = Math.max(...crops.map((crop) => crop.width)) + margin * 2;
-  const height = crops.reduce((sum, crop) => sum + crop.height, margin * 2 + gap * (crops.length - 1));
-  const sheet = document.createElement("canvas");
-  sheet.width = width;
-  sheet.height = height;
-  const context = sheet.getContext("2d", { willReadFrequently: true });
-  context.fillStyle = "#fff";
-  context.fillRect(0, 0, sheet.width, sheet.height);
-
-  let y = margin;
-  for (const crop of crops) {
-    context.drawImage(crop, margin, y);
-    y += crop.height + gap;
-  }
-  return sheet;
-}
-
-function repairOcrDigits(text) {
-  return String(text || "")
-    .replace(/[Oo]/g, "0")
-    .replace(/[Il|]/g, "1")
-    .replace(/[ＢB]/g, "8")
-    .replace(/[ＳS]/g, "5");
-}
-
-function findInvoiceNumber(text) {
-  const normalized = String(text || "").toUpperCase().replace(/[^A-Z0-9\- ]/g, " ");
-  const matches = [...normalized.matchAll(/([A-Z]{2})\s*[- ]?\s*([0-9OILSB]{7,8})/g)];
-  const exact = matches
-    .map((match) => `${match[1]}${repairOcrDigits(match[2]).replace(/\D/g, "")}`)
-    .find((value) => /^[A-Z]{2}\d{8}$/.test(value));
-  return exact || "";
-}
-
-function normalizeOcrDate(value) {
-  const match = String(value || "").match(/(20\d{2})\s*[-/.]\s*(\d{1,2})\s*[-/.]\s*(\d{1,2})/);
-  if (!match) return "";
-  const [, year, month, day] = match;
-  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-}
-
-function parseInvoiceOcr(textSheetText, amountSheetText) {
-  const top = String(textSheetText || "");
-  const amount = String(amountSheetText || "");
-  const repairedAllText = repairOcrDigits(`${top}\n${amount}`).toUpperCase();
-  const repairedAmount = repairOcrDigits(amount).toUpperCase();
-  const invoiceNumber = findInvoiceNumber(`${top}\n${amount}`);
-  const invoiceDate = normalizeOcrDate(repairedAllText);
-  const digitRuns = [...repairedAllText.matchAll(/\d[\d,.\s]{1,12}\d/g)]
-    .map((match) => match[0].replace(/\D/g, ""))
-    .filter(Boolean);
-  const separatedAmountRuns = [...repairedAmount.matchAll(/[0-9]{1,3}[,.][0-9]{3}/g)]
-    .map((match) => ({ raw: match[0], digits: match[0].replace(/\D/g, ""), separated: true }));
-  const plainAmountRuns = [...repairedAmount.matchAll(/(^|[^0-9,.])([0-9]{3,7})(?![0-9,.])/g)]
-    .map((match) => ({ raw: match[2], digits: match[2], separated: false }));
-  const amountRuns = [...separatedAmountRuns, ...plainAmountRuns];
-  const taxIds = digitRuns.flatMap((digits) => {
-    const values = [];
-    for (let index = 0; index <= digits.length - 8; index += 1) {
-      values.push(digits.slice(index, index + 8));
-    }
-    return values;
-  });
-  const target = normalizeTaxId(settings.targetTaxId);
-  const buyerTaxId = target && taxIds.includes(target) ? target : taxIds.at(-1) || "";
-  const invoiceDigits = invoiceNumber.replace(/\D/g, "");
-  const amountCandidates = amountRuns
-    .filter(({ raw, digits }) =>
-      digits.length >= 3 &&
-      digits.length <= 7 &&
-      !raw.includes(":") &&
-      (!invoiceDigits || !invoiceDigits.includes(digits))
-    )
-    .map(({ raw, digits, separated }) => ({
-      number: Number(digits),
-      score: (separated ? 30 : 0) + (raw.includes(",") ? 8 : 0) + (raw.includes(".") ? 5 : 0) - Math.max(0, digits.length - 5)
-    }))
-    .filter(({ number }) => number > 0 && number !== 3484)
-    .sort((a, b) => b.score - a.score || b.number - a.number);
-
-  return {
-    invoiceNumber,
-    invoiceDate,
-    totalAmount: amountCandidates.length ? String(amountCandidates[0].number) : "",
-    buyerTaxId
-  };
-}
-
 function hasCoreInvoiceData(data = {}) {
   return Boolean(data.invoiceDate && data.totalAmount && data.buyerTaxId);
-}
-
-async function detectInvoiceTextFromImage(file) {
-  const worker = await getOcrWorker();
-  if (!worker) return {};
-
-  let bitmap;
-  try {
-    bitmap = await createImageBitmap(file);
-    const textSheet = buildOcrSheet(bitmap, OCR_TEXT_REGIONS);
-    const amountSheet = buildOcrSheet(bitmap, OCR_AMOUNT_REGIONS);
-    els.reviewStatus.textContent = "文字辨識中";
-    const { data: textResult } = await worker.recognize(textSheet);
-    const { data: amountResult } = await worker.recognize(amountSheet);
-    return parseInvoiceOcr(textResult.text, amountResult.text);
-  } catch {
-    return {};
-  } finally {
-    bitmap?.close?.();
-  }
 }
 
 function parseTaiwanInvoiceQr(raw) {
@@ -639,55 +415,15 @@ function rocToDate(value) {
   return `${year}-${month}-${day}`;
 }
 
-async function extractInvoice() {
-  const file = els.imageInput?.files?.[0];
-  if (!file) return;
-  if (els.extractButton) {
-    els.extractButton.disabled = true;
-    els.extractButton.textContent = "辨識中";
-  }
-  lastImageQrRaw = "";
-  setScanDebug(scanDebugMessage("照片辨識", "", {}));
-
-  const barcodeData = await detectBarcodeFromImage(file);
-  const textData = hasCoreInvoiceData(barcodeData) ? {} : await detectInvoiceTextFromImage(file);
-  let result = { ok: false, mode: "offline", extracted: {}, error: "" };
-
-  try {
-    const response = await fetch("./api/invoices/extract", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        imageDataUrl: selectedImageDataUrl,
-        targetTaxId: settings.targetTaxId
-      })
-    });
-    if (response.ok && response.headers.get("content-type")?.includes("application/json")) {
-      result = await response.json();
-    }
-  } catch (error) {
-    result.error = error.message || "";
-  } finally {
-    const cloudData = result.ok ? result.extracted : {};
-    const merged = { ...cloudData, ...removeEmpty(textData), ...removeEmpty(barcodeData) };
-    merged.includeInTotal = normalizeTaxId(merged.buyerTaxId) === normalizeTaxId(settings.targetTaxId);
-    const hasOfflineData = Object.keys(removeEmpty(barcodeData)).length > 0;
-    const hasTextData = Object.keys(removeEmpty(textData)).length > 0;
-    merged.status = hasOfflineData ? "已讀取 QR 資料，請確認" : "未讀取到 QR，已改用文字辨識";
-    if (!hasOfflineData && !hasTextData) merged.status = "未讀取到資料，請近拍左側 QR 或手動輸入";
-    if (result.ok && result.mode !== "manual") merged.status = "請確認辨識結果";
-    if (result.ok && result.mode === "manual" && !hasOfflineData && !hasTextData) merged.status = "未連接雲端辨識，請手動確認";
-    if (!hasCoreInvoiceData(merged)) setScanDebug(scanDebugMessage(hasOfflineData ? "照片 QR/OCR" : "照片 OCR", lastImageQrRaw, merged));
-    setReviewValues(merged);
-    if (els.extractButton) {
-      els.extractButton.disabled = false;
-      els.extractButton.textContent = "辨識發票";
-    }
-  }
-}
-
 function removeEmpty(value) {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== ""));
+}
+
+function sortRecordsByDate(records) {
+  return [...records].sort((a, b) =>
+    String(a.invoiceDate).localeCompare(String(b.invoiceDate)) ||
+    String(a.createdAt).localeCompare(String(b.createdAt))
+  );
 }
 
 async function duplicateInfo(candidateNumber, candidateDate, candidateAmount) {
@@ -770,10 +506,7 @@ async function submitReview(event) {
 }
 
 async function render() {
-  const records = (await getAllRecords()).sort((a, b) =>
-    String(b.invoiceDate).localeCompare(String(a.invoiceDate)) ||
-    String(b.createdAt).localeCompare(String(a.createdAt))
-  );
+  const records = sortRecordsByDate(await getAllRecords());
   const included = records.filter((record) => record.taxIdMatched && record.includeInTotal);
   const total = included.reduce((sum, record) => sum + Number(record.totalAmount || 0), 0);
   const duplicates = records.filter((record) => record.duplicateFlag).length;
@@ -822,14 +555,15 @@ function recordHtml(record) {
 
 function toCsv(records) {
   const header = ["發票號碼", "發票日期", "單張總金額", "統編是否正確", "是否納入加總"];
-  const rows = records.map((record) => [
+  const sortedRecords = sortRecordsByDate(records);
+  const rows = sortedRecords.map((record) => [
     record.invoiceNumber,
     record.invoiceDate,
     record.totalAmount,
     record.taxIdMatched ? "是" : "否",
     record.includeInTotal ? "是" : "否"
   ]);
-  const total = records
+  const total = sortedRecords
     .filter((record) => record.taxIdMatched && record.includeInTotal)
     .reduce((sum, record) => sum + Number(record.totalAmount || 0), 0);
   rows.push(["", "加總", total, "", ""]);
@@ -844,7 +578,7 @@ function csvCell(value) {
 }
 
 async function exportCsv() {
-  const records = await getAllRecords();
+  const records = sortRecordsByDate(await getAllRecords());
   const csv = "\ufeff" + toCsv(records);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const filename = settings.exportFilename || DEFAULT_FILENAME;
@@ -896,6 +630,18 @@ async function importCsv(file) {
     count += 1;
   }
   showToast(`已匯入 ${count} 筆`);
+  await render();
+}
+
+async function clearRecords() {
+  const records = await getAllRecords();
+  if (!records.length) {
+    showToast("目前沒有紀錄");
+    return;
+  }
+  if (!confirm(`確定清除全部 ${records.length} 筆紀錄？此動作無法復原。`)) return;
+  await clearAllRecords();
+  showToast("已清除全部紀錄");
   await render();
 }
 
@@ -970,20 +716,6 @@ function setTab(name) {
 
 function bindEvents() {
   els.tabs.forEach((tab) => tab.addEventListener("click", () => setTab(tab.dataset.tab)));
-  els.imageInput?.addEventListener("change", async () => {
-    const file = els.imageInput.files?.[0];
-    if (!file) return;
-    selectedImageDataUrl = await fileToDataUrl(file);
-    if (els.previewImage) {
-      els.previewImage.src = selectedImageDataUrl;
-      els.previewImage.hidden = false;
-    }
-    if (els.extractButton) els.extractButton.disabled = false;
-  });
-  els.scanForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    extractInvoice();
-  });
   els.liveScanButton.addEventListener("click", startLiveScan);
   els.stopScanButton.addEventListener("click", stopLiveScan);
   els.manualButton.addEventListener("click", () => setReviewValues({ status: "手動新增發票資料" }));
@@ -1016,6 +748,7 @@ function bindEvents() {
     showToast("設定已儲存");
   });
   els.exportButton.addEventListener("click", exportCsv);
+  els.clearRecordsButton?.addEventListener("click", clearRecords);
   els.importInput.addEventListener("change", async () => {
     const file = els.importInput.files?.[0];
     if (file) await importCsv(file);

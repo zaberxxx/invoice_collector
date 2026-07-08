@@ -35,7 +35,7 @@
       </nav>
 
       <section class="panel is-active" id="scanPanel">
-        <form id="scanForm" class="scan-form">
+        <div class="scan-form">
           <div class="actions">
             <button class="primary" id="liveScanButton" type="button">即時掃 QR</button>
             <button class="secondary" id="stopScanButton" type="button" hidden>停止掃描</button>
@@ -49,15 +49,19 @@
             <button class="secondary" id="manualButton" type="button">手動新增</button>
           </div>
           <div class="scan-debug" id="scanDebug" hidden></div>
-        </form>
+        </div>
 
         <form id="reviewForm" class="review-form" hidden>
-          <div class="status-line" id="reviewStatus">請確認辨識結果</div>
-          <label>發票號碼<input id="invoiceNumber" name="invoiceNumber" autocomplete="off" placeholder="AA12345678"></label>
-          <label>發票日期<input id="invoiceDate" name="invoiceDate" type="date"></label>
-          <label>單張總金額<input id="totalAmount" name="totalAmount" inputmode="numeric" pattern="[0-9]*" placeholder="0"></label>
-          <label>發票上的統編<input id="buyerTaxId" name="buyerTaxId" inputmode="numeric" pattern="[0-9]*" placeholder="8 位數統編"></label>
-          <div class="check-row"><span>統編是否正確</span><strong id="taxIdResult">未確認</strong></div>
+          <div class="review-head">
+            <div class="status-line" id="reviewStatus">請確認辨識結果</div>
+            <div class="check-row tax-result"><span>統編</span><strong id="taxIdResult">未確認</strong></div>
+          </div>
+          <div class="review-grid">
+            <label>發票號碼<input id="invoiceNumber" name="invoiceNumber" autocomplete="off" placeholder="AA12345678"></label>
+            <label>發票日期<input id="invoiceDate" name="invoiceDate" type="date"></label>
+            <label>單張總金額<input id="totalAmount" name="totalAmount" inputmode="numeric" pattern="[0-9]*" placeholder="0"></label>
+            <label>發票統編<input id="buyerTaxId" name="buyerTaxId" inputmode="numeric" pattern="[0-9]*" placeholder="8 位數"></label>
+          </div>
           <label class="toggle-row"><input id="includeInTotal" name="includeInTotal" type="checkbox"><span>納入加總</span></label>
           <div class="warning" id="duplicateWarning" hidden></div>
           <div class="actions">
@@ -70,6 +74,7 @@
       <section class="panel" id="recordsPanel">
         <div class="toolbar">
           <button class="secondary" id="exportButton" type="button">更新匯出檔</button>
+          <button class="secondary danger" id="clearRecordsButton" type="button">清除全部</button>
           <label class="file-button">匯入既有檔<input id="importInput" type="file" accept=".csv,text/csv"></label>
         </div>
         <div id="recordList" class="record-list"></div>
@@ -86,7 +91,6 @@
     </main>
 
     <div class="toast" id="toast" role="status" hidden></div>
-    <script src="./tesseract/tesseract.min.js"></script>
     <script src="./zxing.js"></script>
     <script src="./jsQR.js"></script>
     <script src="./qr-fallback.js"></script>
