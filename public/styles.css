@@ -156,8 +156,8 @@ input {
 }
 
 .camera-panel.is-complete {
-  border-color: var(--ok);
-  box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.18), var(--shadow);
+  border: 3px solid var(--ok);
+  box-shadow: 0 0 0 5px rgba(23, 107, 91, 0.2), var(--shadow);
 }
 
 .camera-panel video,
@@ -170,6 +170,10 @@ input {
 
 .camera-freeze {
   background: #050505;
+}
+
+.camera-freeze[hidden] {
+  display: none;
 }
 
 .camera-panel.is-idle video,
