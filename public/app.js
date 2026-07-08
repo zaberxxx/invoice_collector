@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.08-live-compact";
+const APP_VERSION = "2026.07.08-streamlined";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -15,24 +15,20 @@ const els = {
     settings: document.querySelector("#settingsPanel")
   },
   liveScanButton: document.querySelector("#liveScanButton"),
-  stopScanButton: document.querySelector("#stopScanButton"),
   cameraPanel: document.querySelector("#cameraPanel"),
   cameraPreview: document.querySelector("#cameraPreview"),
   cameraStatus: document.querySelector("#cameraStatus"),
   manualButton: document.querySelector("#manualButton"),
   reviewForm: document.querySelector("#reviewForm"),
-  reviewStatus: document.querySelector("#reviewStatus"),
   invoiceNumber: document.querySelector("#invoiceNumber"),
   invoiceDate: document.querySelector("#invoiceDate"),
   totalAmount: document.querySelector("#totalAmount"),
   buyerTaxId: document.querySelector("#buyerTaxId"),
   taxIdResult: document.querySelector("#taxIdResult"),
-  includeInTotal: document.querySelector("#includeInTotal"),
   duplicateWarning: document.querySelector("#duplicateWarning"),
   clearReviewButton: document.querySelector("#clearReviewButton"),
   includedCount: document.querySelector("#includedCount"),
   includedTotal: document.querySelector("#includedTotal"),
-  duplicateCount: document.querySelector("#duplicateCount"),
   recordList: document.querySelector("#recordList"),
   settingsForm: document.querySelector("#settingsForm"),
   targetTaxId: document.querySelector("#targetTaxId"),
@@ -40,7 +36,6 @@ const els = {
   exportButton: document.querySelector("#exportButton"),
   clearRecordsButton: document.querySelector("#clearRecordsButton"),
   importInput: document.querySelector("#importInput"),
-  scanDebug: document.querySelector("#scanDebug"),
   toast: document.querySelector("#toast"),
   installButton: document.querySelector("#installButton")
 };
@@ -123,29 +118,6 @@ function showToast(message) {
   }, 2800);
 }
 
-function setScanDebug(message = "") {
-  if (!els.scanDebug) return;
-  els.scanDebug.hidden = !message;
-  els.scanDebug.textContent = message;
-}
-
-function scanDebugMessage(source, raw, parsed = {}) {
-  const fields = [
-    parsed.invoiceNumber ? "號碼" : "",
-    parsed.invoiceDate ? "日期" : "",
-    parsed.totalAmount ? "金額" : "",
-    parsed.buyerTaxId ? "統編" : ""
-  ].filter(Boolean);
-  const missing = [
-    parsed.invoiceNumber ? "" : "號碼",
-    parsed.invoiceDate ? "" : "日期",
-    parsed.totalAmount ? "" : "金額",
-    parsed.buyerTaxId ? "" : "統編"
-  ].filter(Boolean);
-  const rawLength = String(raw || "").replace(/\s/g, "").length;
-  return `版本 ${APP_VERSION}｜${source}｜QR ${rawLength || 0} 字｜已抓 ${fields.join("/") || "無"}｜缺 ${missing.join("/") || "無"}`;
-}
-
 function rememberLiveQrRaw(raw) {
   const values = String(raw || "")
     .split(/\n+/)
@@ -180,31 +152,22 @@ function toNumberString(value) {
   return digits ? String(Number(digits)) : "";
 }
 
-function isTaxIdMatched() {
-  const target = normalizeTaxId(settings.targetTaxId);
-  const buyer = normalizeTaxId(els.buyerTaxId.value);
-  return Boolean(target && buyer && target === buyer);
-}
-
 function updateTaxResult() {
   const target = normalizeTaxId(settings.targetTaxId);
   const buyer = normalizeTaxId(els.buyerTaxId.value);
   if (!target) {
     els.taxIdResult.textContent = "尚未設定";
     els.taxIdResult.className = "";
-    els.includeInTotal.checked = false;
     return;
   }
   if (!buyer) {
     els.taxIdResult.textContent = "未辨識";
     els.taxIdResult.className = "";
-    els.includeInTotal.checked = false;
     return;
   }
   const matched = target === buyer;
   els.taxIdResult.textContent = matched ? "正確" : "不符合";
   els.taxIdResult.className = matched ? "ok" : "warn";
-  if (!matched) els.includeInTotal.checked = false;
 }
 
 function setReviewValues(data = {}) {
@@ -212,8 +175,6 @@ function setReviewValues(data = {}) {
   els.invoiceDate.value = data.invoiceDate || "";
   els.totalAmount.value = toNumberString(data.totalAmount);
   els.buyerTaxId.value = normalizeTaxId(data.buyerTaxId);
-  els.includeInTotal.checked = Boolean(data.includeInTotal);
-  els.reviewStatus.textContent = data.status || "請確認辨識結果";
   els.reviewForm.hidden = false;
   updateTaxResult();
   checkDuplicateWarning();
@@ -222,8 +183,7 @@ function setReviewValues(data = {}) {
 function clearReview() {
   editingRecordId = "";
   stopLiveScan();
-  setReviewValues({ status: "請輸入或辨識發票資料" });
-  els.reviewForm.hidden = true;
+  setReviewValues({});
   els.duplicateWarning.hidden = true;
 }
 
@@ -245,9 +205,20 @@ async function detectQrCodesFromSource(source) {
 
 function applyDetectedInvoice(data, status) {
   const merged = removeEmpty(data);
-  merged.includeInTotal = normalizeTaxId(merged.buyerTaxId) === normalizeTaxId(settings.targetTaxId);
+  merged.includeInTotal = true;
   merged.status = status;
   setReviewValues(merged);
+}
+
+function setLiveScanButton(active) {
+  if (!els.liveScanButton) return;
+  els.liveScanButton.textContent = active ? "停止掃描" : "即時掃 QR";
+  els.liveScanButton.classList.toggle("is-stop", active);
+}
+
+function toggleLiveScan() {
+  if (cameraStream) stopLiveScan();
+  else startLiveScan();
 }
 
 async function startLiveScan() {
@@ -258,10 +229,9 @@ async function startLiveScan() {
 
   stopLiveScan();
   liveQrHistory = [];
-  setScanDebug(scanDebugMessage("即時掃描", "", {}));
   els.cameraPanel.hidden = false;
   els.liveScanButton.disabled = true;
-  els.stopScanButton.hidden = false;
+  els.liveScanButton.textContent = "正在開啟";
   els.cameraStatus.textContent = "正在開啟相機";
 
   try {
@@ -276,6 +246,7 @@ async function startLiveScan() {
     els.cameraPreview.srcObject = cameraStream;
     await els.cameraPreview.play();
     els.cameraStatus.textContent = "請將左側 QR 放在框內";
+    setLiveScanButton(true);
     scheduleLiveScan();
   } catch (error) {
     stopLiveScan();
@@ -299,8 +270,8 @@ function stopLiveScan() {
     els.cameraPreview.srcObject = null;
   }
   if (els.cameraPanel) els.cameraPanel.hidden = true;
-  if (els.stopScanButton) els.stopScanButton.hidden = true;
   if (els.liveScanButton) els.liveScanButton.disabled = false;
+  setLiveScanButton(false);
 }
 
 function pauseLiveScanForReview() {
@@ -310,8 +281,8 @@ function pauseLiveScanForReview() {
   }
   liveScanBusy = false;
   if (els.cameraStatus) els.cameraStatus.textContent = "已掃到 QR，請確認下方資料";
-  if (els.stopScanButton) els.stopScanButton.hidden = false;
   if (els.liveScanButton) els.liveScanButton.disabled = false;
+  setLiveScanButton(true);
 }
 
 function scheduleLiveScan() {
@@ -334,7 +305,6 @@ async function scanLiveFrame() {
     const raw = codes.map((code) => code.rawValue).filter(Boolean).join("\n");
     const combinedRaw = rememberLiveQrRaw(raw);
     const parsed = parseTaiwanInvoiceQr(combinedRaw);
-    setScanDebug(scanDebugMessage("即時掃描", combinedRaw, parsed));
     if (hasCoreInvoiceData(parsed)) {
       pauseLiveScanForReview();
       applyDetectedInvoice(parsed, "已即時讀取 QR，請確認");
@@ -469,7 +439,7 @@ async function submitReview(event) {
   const totalAmount = toNumberString(els.totalAmount.value);
   const buyerTaxId = normalizeTaxId(els.buyerTaxId.value);
   const taxIdMatched = buyerTaxId && settings.targetTaxId ? buyerTaxId === settings.targetTaxId : false;
-  const includeInTotal = Boolean(els.includeInTotal.checked && taxIdMatched);
+  const includeInTotal = true;
 
   if (!invoiceDate || !totalAmount) {
     showToast("日期與總金額必填");
@@ -507,16 +477,13 @@ async function submitReview(event) {
 
 async function render() {
   const records = sortRecordsByDate(await getAllRecords());
-  const included = records.filter((record) => record.taxIdMatched && record.includeInTotal);
+  const included = records.filter((record) => record.includeInTotal);
   const total = included.reduce((sum, record) => sum + Number(record.totalAmount || 0), 0);
-  const duplicates = records.filter((record) => record.duplicateFlag).length;
-
   els.includedCount.textContent = String(included.length);
   els.includedTotal.textContent = currency(total);
-  els.duplicateCount.textContent = String(duplicates);
 
   if (!records.length) {
-    els.recordList.innerHTML = `<div class="status-line">尚無記錄</div>`;
+    els.recordList.innerHTML = `<div class="note">尚無記錄</div>`;
     return;
   }
 
@@ -564,7 +531,7 @@ function toCsv(records) {
     record.includeInTotal ? "是" : "否"
   ]);
   const total = sortedRecords
-    .filter((record) => record.taxIdMatched && record.includeInTotal)
+    .filter((record) => record.includeInTotal)
     .reduce((sum, record) => sum + Number(record.totalAmount || 0), 0);
   rows.push(["", "加總", total, "", ""]);
   return [header, ...rows]
@@ -695,7 +662,7 @@ async function handleRecordAction(event) {
   }
 
   if (button.dataset.action === "toggle") {
-    record.includeInTotal = !record.includeInTotal && record.taxIdMatched;
+    record.includeInTotal = !record.includeInTotal;
     record.updatedAt = new Date().toISOString();
     await saveRecord(record);
     await render();
@@ -716,27 +683,16 @@ function setTab(name) {
 
 function bindEvents() {
   els.tabs.forEach((tab) => tab.addEventListener("click", () => setTab(tab.dataset.tab)));
-  els.liveScanButton.addEventListener("click", startLiveScan);
-  els.stopScanButton.addEventListener("click", stopLiveScan);
-  els.manualButton.addEventListener("click", () => setReviewValues({ status: "手動新增發票資料" }));
+  els.liveScanButton.addEventListener("click", toggleLiveScan);
+  els.manualButton.addEventListener("click", clearReview);
   els.reviewForm.addEventListener("submit", submitReview);
   els.clearReviewButton.addEventListener("click", clearReview);
-  [els.buyerTaxId, els.invoiceNumber, els.invoiceDate, els.totalAmount].forEach((input) => {
+  [els.invoiceNumber, els.invoiceDate, els.totalAmount].forEach((input) => {
     input.addEventListener("input", () => {
-      if (input === els.buyerTaxId) {
-        els.buyerTaxId.value = normalizeTaxId(els.buyerTaxId.value);
-        updateTaxResult();
-      }
       if (input === els.totalAmount) els.totalAmount.value = toNumberString(els.totalAmount.value);
       if (input === els.invoiceNumber) els.invoiceNumber.value = normalizeInvoiceNumber(els.invoiceNumber.value);
       checkDuplicateWarning();
     });
-  });
-  els.includeInTotal.addEventListener("change", () => {
-    if (els.includeInTotal.checked && !isTaxIdMatched()) {
-      els.includeInTotal.checked = false;
-      showToast("統編正確才可納入加總");
-    }
   });
   els.settingsForm.addEventListener("submit", async (event) => {
     event.preventDefault();

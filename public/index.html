@@ -14,8 +14,6 @@
       <header class="app-header">
         <div>
           <p class="eyebrow">統編發票記錄</p>
-          <h1>拍照、確認、加總</h1>
-          <p class="app-version" id="appVersion">版本讀取中</p>
         </div>
         <button class="icon-button" id="installButton" type="button" hidden title="安裝到手機">
           <span aria-hidden="true">＋</span>
@@ -25,7 +23,6 @@
       <section class="summary-strip" aria-label="加總摘要">
         <div><span>納入張數</span><strong id="includedCount">0</strong></div>
         <div><span>加總金額</span><strong id="includedTotal">$0</strong></div>
-        <div><span>重複提示</span><strong id="duplicateCount">0</strong></div>
       </section>
 
       <nav class="tabs" aria-label="主要功能">
@@ -36,38 +33,30 @@
 
       <section class="panel is-active" id="scanPanel">
         <div class="scan-form">
-          <div class="actions">
+          <div class="actions single-action">
             <button class="primary" id="liveScanButton" type="button">即時掃 QR</button>
-            <button class="secondary" id="stopScanButton" type="button" hidden>停止掃描</button>
           </div>
           <div class="camera-panel" id="cameraPanel" hidden>
             <video id="cameraPreview" playsinline muted></video>
             <div class="scan-frame" aria-hidden="true"></div>
             <div class="camera-status" id="cameraStatus">準備開啟相機</div>
           </div>
-          <div class="actions single-action">
-            <button class="secondary" id="manualButton" type="button">手動新增</button>
-          </div>
-          <div class="scan-debug" id="scanDebug" hidden></div>
         </div>
 
-        <form id="reviewForm" class="review-form" hidden>
-          <div class="review-head">
-            <div class="status-line" id="reviewStatus">請確認辨識結果</div>
-            <div class="check-row tax-result"><span>統編</span><strong id="taxIdResult">未確認</strong></div>
-          </div>
+        <form id="reviewForm" class="review-form">
           <div class="review-grid">
             <label>發票號碼<input id="invoiceNumber" name="invoiceNumber" autocomplete="off" placeholder="AA12345678"></label>
             <label>發票日期<input id="invoiceDate" name="invoiceDate" type="date"></label>
             <label>單張總金額<input id="totalAmount" name="totalAmount" inputmode="numeric" pattern="[0-9]*" placeholder="0"></label>
-            <label>發票統編<input id="buyerTaxId" name="buyerTaxId" inputmode="numeric" pattern="[0-9]*" placeholder="8 位數"></label>
+            <div class="check-row tax-result"><span>統編</span><strong id="taxIdResult">未確認</strong></div>
           </div>
-          <label class="toggle-row"><input id="includeInTotal" name="includeInTotal" type="checkbox"><span>納入加總</span></label>
+          <input id="buyerTaxId" name="buyerTaxId" type="hidden">
           <div class="warning" id="duplicateWarning" hidden></div>
           <div class="actions">
             <button class="primary" type="submit">儲存記錄</button>
             <button class="secondary" id="clearReviewButton" type="button">清除</button>
           </div>
+          <button class="secondary" id="manualButton" type="button">手動新增</button>
         </form>
       </section>
 
@@ -88,6 +77,7 @@
         </form>
         <p class="note">iPhone/iPad 會下載或分享同一個固定檔名；存入 iCloud Drive 時請選擇取代原檔，App 內資料會持續更新同一份主記錄。</p>
       </section>
+      <p class="app-version" id="appVersion">版本讀取中</p>
     </main>
 
     <div class="toast" id="toast" role="status" hidden></div>

@@ -40,26 +40,22 @@ input {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 8px 0 14px;
+  padding: 8px 0 10px;
 }
 
 .eyebrow {
-  margin: 0 0 4px;
-  color: var(--muted);
-  font-size: 13px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .app-version {
-  margin: 6px 0 0;
+  margin: 18px 0 0;
   color: var(--muted);
   font-size: 12px;
-}
-
-h1 {
-  margin: 0;
-  font-size: 28px;
-  line-height: 1.15;
-  letter-spacing: 0;
+  text-align: center;
 }
 
 .icon-button {
@@ -74,7 +70,7 @@ h1 {
 
 .summary-strip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   margin: 8px 0 14px;
 }
@@ -227,6 +223,11 @@ button,
   opacity: 0.45;
 }
 
+.primary.is-stop {
+  background: var(--warn);
+  border-color: var(--warn);
+}
+
 .secondary,
 .file-button {
   display: grid;
@@ -258,10 +259,8 @@ input {
   font-size: 16px;
 }
 
-.status-line,
 .warning,
-.note,
-.scan-debug {
+.note {
   padding: 11px 12px;
   border-radius: 8px;
   background: #fff6df;
@@ -270,24 +269,10 @@ input {
   line-height: 1.45;
 }
 
-.review-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(116px, 0.36fr);
-  gap: 8px;
-}
-
 .review-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-}
-
-.scan-debug {
-  background: #edf7f4;
-  color: #214e46;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
-  overflow-wrap: anywhere;
 }
 
 .warning {
@@ -295,8 +280,7 @@ input {
   color: var(--warn);
 }
 
-.check-row,
-.toggle-row {
+.check-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -307,17 +291,6 @@ input {
   background: var(--panel);
   color: var(--ink);
   font-size: 15px;
-}
-
-.toggle-row {
-  justify-content: flex-start;
-  gap: 12px;
-  min-height: 42px;
-}
-
-.toggle-row input {
-  width: 22px;
-  min-height: 22px;
 }
 
 .tax-result strong.ok {
