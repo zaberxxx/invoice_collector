@@ -36,7 +36,7 @@
           <div class="actions single-action">
             <button class="primary" id="liveScanButton" type="button">即時掃 QR</button>
           </div>
-          <div class="camera-panel" id="cameraPanel" hidden>
+          <div class="camera-panel is-idle" id="cameraPanel">
             <video id="cameraPreview" playsinline muted></video>
             <div class="scan-frame" aria-hidden="true"></div>
             <div class="camera-status" id="cameraStatus">準備開啟相機</div>
@@ -45,10 +45,13 @@
 
         <form id="reviewForm" class="review-form">
           <div class="review-grid">
-            <label>發票號碼<input id="invoiceNumber" name="invoiceNumber" autocomplete="off" placeholder="AA12345678"></label>
-            <label>發票日期<input id="invoiceDate" name="invoiceDate" type="date"></label>
-            <label>單張總金額<input id="totalAmount" name="totalAmount" inputmode="numeric" pattern="[0-9]*" placeholder="0"></label>
-            <div class="check-row tax-result"><span>統編</span><strong id="taxIdResult">未確認</strong></div>
+            <label class="review-field">發票號碼<input id="invoiceNumber" name="invoiceNumber" autocomplete="off" placeholder="AA12345678"></label>
+            <label class="review-field">發票日期<input id="invoiceDate" name="invoiceDate" type="date"></label>
+            <label class="review-field">單張總金額<input id="totalAmount" name="totalAmount" inputmode="numeric" pattern="[0-9]*" placeholder="0"></label>
+            <div class="review-field">
+              <span>統編</span>
+              <div class="check-row tax-result"><strong id="taxIdResult">未確認</strong></div>
+            </div>
           </div>
           <input id="buyerTaxId" name="buyerTaxId" type="hidden">
           <div class="warning" id="duplicateWarning" hidden></div>

@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.08-streamlined";
+const APP_VERSION = "2026.07.08-stable-frame";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -230,6 +230,7 @@ async function startLiveScan() {
   stopLiveScan();
   liveQrHistory = [];
   els.cameraPanel.hidden = false;
+  els.cameraPanel.classList.remove("is-idle");
   els.liveScanButton.disabled = true;
   els.liveScanButton.textContent = "正在開啟";
   els.cameraStatus.textContent = "正在開啟相機";
@@ -269,7 +270,10 @@ function stopLiveScan() {
     els.cameraPreview.removeAttribute("srcObject");
     els.cameraPreview.srcObject = null;
   }
-  if (els.cameraPanel) els.cameraPanel.hidden = true;
+  if (els.cameraPanel) {
+    els.cameraPanel.hidden = false;
+    els.cameraPanel.classList.add("is-idle");
+  }
   if (els.liveScanButton) els.liveScanButton.disabled = false;
   setLiveScanButton(false);
 }
