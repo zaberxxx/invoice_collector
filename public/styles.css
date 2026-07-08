@@ -156,8 +156,17 @@ input {
 }
 
 .camera-panel.is-complete {
-  border: 5px solid var(--ok);
+  border-color: var(--ok);
   box-shadow: none;
+}
+
+.camera-panel.is-complete::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  border: 5px solid var(--ok);
+  border-radius: inherit;
 }
 
 .camera-panel video,
