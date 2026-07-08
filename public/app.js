@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.07-qr-diagnostics";
+const APP_VERSION = "2026.07.08-live-only";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -239,9 +239,11 @@ function setReviewValues(data = {}) {
 function clearReview() {
   editingRecordId = "";
   selectedImageDataUrl = "";
-  els.imageInput.value = "";
-  els.previewImage.hidden = true;
-  els.previewImage.removeAttribute("src");
+  if (els.imageInput) els.imageInput.value = "";
+  if (els.previewImage) {
+    els.previewImage.hidden = true;
+    els.previewImage.removeAttribute("src");
+  }
   setReviewValues({ status: "請輸入或辨識發票資料" });
   els.reviewForm.hidden = true;
   els.duplicateWarning.hidden = true;
@@ -638,10 +640,12 @@ function rocToDate(value) {
 }
 
 async function extractInvoice() {
-  const file = els.imageInput.files?.[0];
+  const file = els.imageInput?.files?.[0];
   if (!file) return;
-  els.extractButton.disabled = true;
-  els.extractButton.textContent = "辨識中";
+  if (els.extractButton) {
+    els.extractButton.disabled = true;
+    els.extractButton.textContent = "辨識中";
+  }
   lastImageQrRaw = "";
   setScanDebug(scanDebugMessage("照片辨識", "", {}));
 
@@ -675,8 +679,10 @@ async function extractInvoice() {
     if (result.ok && result.mode === "manual" && !hasOfflineData && !hasTextData) merged.status = "未連接雲端辨識，請手動確認";
     if (!hasCoreInvoiceData(merged)) setScanDebug(scanDebugMessage(hasOfflineData ? "照片 QR/OCR" : "照片 OCR", lastImageQrRaw, merged));
     setReviewValues(merged);
-    els.extractButton.disabled = false;
-    els.extractButton.textContent = "辨識發票";
+    if (els.extractButton) {
+      els.extractButton.disabled = false;
+      els.extractButton.textContent = "辨識發票";
+    }
   }
 }
 
@@ -964,13 +970,15 @@ function setTab(name) {
 
 function bindEvents() {
   els.tabs.forEach((tab) => tab.addEventListener("click", () => setTab(tab.dataset.tab)));
-  els.imageInput.addEventListener("change", async () => {
+  els.imageInput?.addEventListener("change", async () => {
     const file = els.imageInput.files?.[0];
     if (!file) return;
     selectedImageDataUrl = await fileToDataUrl(file);
-    els.previewImage.src = selectedImageDataUrl;
-    els.previewImage.hidden = false;
-    els.extractButton.disabled = false;
+    if (els.previewImage) {
+      els.previewImage.src = selectedImageDataUrl;
+      els.previewImage.hidden = false;
+    }
+    if (els.extractButton) els.extractButton.disabled = false;
   });
   els.scanForm.addEventListener("submit", (event) => {
     event.preventDefault();

@@ -236,6 +236,10 @@ h1 {
   gap: 8px;
 }
 
+.actions.single-action {
+  grid-template-columns: 1fr;
+}
+
 button,
 .file-button {
   min-height: 46px;
