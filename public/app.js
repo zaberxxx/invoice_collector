@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-tax-warning";
+const APP_VERSION = "2026.07.09-tax-compact";
 const LIVE_QR_HISTORY_LIMIT = 12;
 const LIVE_SCAN_DELAY_MS = 100;
 
@@ -57,6 +57,7 @@ let liveScanTimer = 0;
 let liveScanBusy = false;
 let liveScanDetector = null;
 let liveQrHistory = [];
+let reviewHasDetectedInvoice = false;
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -177,7 +178,7 @@ function toNumberString(value) {
 function updateTaxResult() {
   const target = normalizeTaxId(settings.targetTaxId);
   const buyer = normalizeTaxId(els.buyerTaxId.value);
-  if (els.taxIdValue) els.taxIdValue.textContent = buyer || "未辨識";
+  if (els.taxIdValue) els.taxIdValue.textContent = buyer || (reviewHasDetectedInvoice ? "無統編" : "未辨識");
   if (!target) {
     els.taxIdResult.textContent = "";
     els.taxIdResult.className = "";
@@ -198,7 +199,8 @@ function updateSaveButtonState() {
   els.saveReviewButton.disabled = !canSave;
 }
 
-function setReviewValues(data = {}) {
+function setReviewValues(data = {}, options = {}) {
+  reviewHasDetectedInvoice = Boolean(options.detectedInvoice);
   els.invoiceNumber.value = normalizeInvoiceNumber(data.invoiceNumber);
   els.invoiceDate.value = data.invoiceDate || "";
   els.totalAmount.value = toNumberString(data.totalAmount);
@@ -237,7 +239,7 @@ function applyDetectedInvoice(data, status) {
   const merged = removeEmpty(data);
   merged.includeInTotal = true;
   merged.status = status;
-  setReviewValues(merged);
+  setReviewValues(merged, { detectedInvoice: true });
 }
 
 function setLiveScanButton(active) {
