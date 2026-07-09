@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-fixed-pages";
+const APP_VERSION = "2026.07.09-fixed-records";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -718,9 +718,26 @@ async function handleRecordAction(event) {
 
 function setTab(name) {
   if (name !== "scan") stopLiveScan();
-  document.body.classList.toggle("is-fixed-page", name !== "records");
+  document.body.classList.add("is-fixed-page");
   els.tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.tab === name));
   Object.entries(els.panels).forEach(([key, panel]) => panel.classList.toggle("is-active", key === name));
+  resetPageOffset(true);
+}
+
+function syncViewportHeight() {
+  const height = window.visualViewport?.height || window.innerHeight;
+  document.documentElement.style.setProperty("--app-height", `${Math.round(height)}px`);
+}
+
+function resetPageOffset(force = false) {
+  window.setTimeout(() => {
+    syncViewportHeight();
+    const activeControl = document.activeElement?.matches?.("input, textarea, select");
+    if (activeControl && !force) return;
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, 80);
 }
 
 async function reloadApp() {
@@ -789,9 +806,14 @@ function bindEvents() {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) stopLiveScan();
   });
+  window.visualViewport?.addEventListener("resize", syncViewportHeight);
+  window.visualViewport?.addEventListener("scroll", resetPageOffset);
+  window.addEventListener("resize", syncViewportHeight);
+  document.addEventListener("focusout", () => resetPageOffset(true));
 }
 
 async function init() {
+  syncViewportHeight();
   if (els.appVersion) els.appVersion.textContent = `版本 ${APP_VERSION}`;
   db = await openDb();
   await loadSettings();

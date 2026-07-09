@@ -1,5 +1,6 @@
 :root {
   color-scheme: light;
+  --app-height: 100dvh;
   --bg: #f7f4ee;
   --ink: #25221e;
   --muted: #726d65;
@@ -16,16 +17,24 @@
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
-  min-height: 100vh;
+  height: var(--app-height);
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
   background: var(--bg);
   color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 body.is-fixed-page {
-  height: 100dvh;
+  height: var(--app-height);
   overflow: hidden;
   overscroll-behavior: none;
 }
@@ -36,9 +45,14 @@ input {
 }
 
 .shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   width: min(100%, 720px);
+  height: var(--app-height);
   margin: 0 auto;
   padding: max(18px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  overflow: hidden;
 }
 
 .app-header {
@@ -130,11 +144,20 @@ input {
 
 .panel {
   display: none;
+  min-height: 0;
   padding-top: 14px;
+  overflow: hidden;
 }
 
 .panel.is-active {
   display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#recordsPanel.is-active {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .scan-form,
