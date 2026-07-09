@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-duplicate-overlay";
+const APP_VERSION = "2026.07.09-scan-messages";
 const LIVE_QR_HISTORY_LIMIT = 12;
 const LIVE_SCAN_DELAY_MS = 100;
 
@@ -28,6 +28,7 @@ const els = {
   taxIdValue: document.querySelector("#taxIdValue"),
   taxIdResult: document.querySelector("#taxIdResult"),
   duplicateWarning: document.querySelector("#duplicateWarning"),
+  scanMessage: document.querySelector("#scanMessage"),
   saveReviewButton: document.querySelector("#saveReviewButton"),
   clearReviewButton: document.querySelector("#clearReviewButton"),
   includedCount: document.querySelector("#includedCount"),
@@ -122,6 +123,23 @@ function showToast(message) {
   }, 2800);
 }
 
+function showScanMessage(message) {
+  if (!els.scanMessage) return;
+  els.scanMessage.textContent = message;
+  els.scanMessage.hidden = false;
+  clearTimeout(showScanMessage.timer);
+  showScanMessage.timer = setTimeout(() => {
+    els.scanMessage.hidden = true;
+  }, 2600);
+}
+
+function hideScanMessage() {
+  if (!els.scanMessage) return;
+  clearTimeout(showScanMessage.timer);
+  els.scanMessage.hidden = true;
+  els.scanMessage.textContent = "";
+}
+
 function rememberLiveQrRaw(raw) {
   const values = String(raw || "")
     .split(/\n+/)
@@ -196,6 +214,7 @@ function clearReview() {
   stopLiveScan();
   setReviewValues({});
   els.duplicateWarning.hidden = true;
+  hideScanMessage();
 }
 
 async function detectQrCodesFromSource(source) {
@@ -248,6 +267,7 @@ async function startLiveScan() {
 
   stopLiveScan();
   liveQrHistory = [];
+  hideScanMessage();
   els.cameraPanel.hidden = false;
   els.cameraPanel.classList.remove("is-idle");
   els.cameraPanel.classList.remove("is-frozen", "is-complete");
@@ -544,9 +564,10 @@ async function submitReview(event) {
   const duplicate = await duplicateInfo(invoiceNumber, invoiceDate, totalAmount);
   let duplicateFlag = duplicate?.type || "";
   if (duplicate?.type === "exact") {
-    const overwrite = confirm("發票號碼已存在。按「確定」覆蓋原記錄，按「取消」仍新增並標記重複。");
-    if (overwrite) editingRecordId = duplicate.record.id;
-    else duplicateFlag = "exact";
+    const overwrite = confirm("發票號碼已存在。按「確定」覆蓋原記錄，按「取消」不儲存。");
+    if (!overwrite) return;
+    editingRecordId = duplicate.record.id;
+    duplicateFlag = "";
   } else if (duplicate?.type === "possible") {
     const continueAdd = confirm("同日期與同金額已有記錄，可能重複。仍要新增嗎？");
     if (!continueAdd) return;
@@ -565,9 +586,9 @@ async function submitReview(event) {
     createdAt: now,
     updatedAt: now
   });
-  showToast("已儲存記錄");
   clearReview();
   await render();
+  showScanMessage("已儲存記錄");
 }
 
 async function render() {

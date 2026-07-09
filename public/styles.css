@@ -264,6 +264,22 @@ body.is-keyboarding #scanPanel .review-form {
   box-shadow: 0 8px 20px rgba(74, 30, 20, 0.18);
 }
 
+.scan-message {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: rgba(37, 34, 30, 0.92);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: 0 8px 20px rgba(41, 33, 21, 0.22);
+}
+
 .actions,
 .toolbar {
   display: grid;
