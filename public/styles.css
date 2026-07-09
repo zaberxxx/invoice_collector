@@ -235,7 +235,10 @@ button,
 }
 
 .primary:disabled {
-  opacity: 0.45;
+  background: #91bcae;
+  border-color: #91bcae;
+  color: rgba(255, 255, 255, 0.86);
+  cursor: default;
 }
 
 .primary.is-stop {

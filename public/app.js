@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.08-inset-frame";
+const APP_VERSION = "2026.07.09-disabled-save";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -19,7 +19,6 @@ const els = {
   cameraPreview: document.querySelector("#cameraPreview"),
   cameraFreeze: document.querySelector("#cameraFreeze"),
   cameraStatus: document.querySelector("#cameraStatus"),
-  manualButton: document.querySelector("#manualButton"),
   reviewForm: document.querySelector("#reviewForm"),
   invoiceNumber: document.querySelector("#invoiceNumber"),
   invoiceDate: document.querySelector("#invoiceDate"),
@@ -28,6 +27,7 @@ const els = {
   taxIdValue: document.querySelector("#taxIdValue"),
   taxIdResult: document.querySelector("#taxIdResult"),
   duplicateWarning: document.querySelector("#duplicateWarning"),
+  saveReviewButton: document.querySelector("#saveReviewButton"),
   clearReviewButton: document.querySelector("#clearReviewButton"),
   includedCount: document.querySelector("#includedCount"),
   includedTotal: document.querySelector("#includedTotal"),
@@ -173,6 +173,11 @@ function updateTaxResult() {
   els.taxIdResult.className = matched ? "ok" : "warn";
 }
 
+function updateSaveButtonState() {
+  const canSave = Boolean(els.invoiceDate.value && toNumberString(els.totalAmount.value));
+  els.saveReviewButton.disabled = !canSave;
+}
+
 function setReviewValues(data = {}) {
   els.invoiceNumber.value = normalizeInvoiceNumber(data.invoiceNumber);
   els.invoiceDate.value = data.invoiceDate || "";
@@ -180,6 +185,7 @@ function setReviewValues(data = {}) {
   els.buyerTaxId.value = normalizeTaxId(data.buyerTaxId);
   els.reviewForm.hidden = false;
   updateTaxResult();
+  updateSaveButtonState();
   checkDuplicateWarning();
 }
 
@@ -718,13 +724,13 @@ function setTab(name) {
 function bindEvents() {
   els.tabs.forEach((tab) => tab.addEventListener("click", () => setTab(tab.dataset.tab)));
   els.liveScanButton.addEventListener("click", toggleLiveScan);
-  els.manualButton.addEventListener("click", clearReview);
   els.reviewForm.addEventListener("submit", submitReview);
   els.clearReviewButton.addEventListener("click", clearReview);
   [els.invoiceNumber, els.invoiceDate, els.totalAmount].forEach((input) => {
     input.addEventListener("input", () => {
       if (input === els.totalAmount) els.totalAmount.value = toNumberString(els.totalAmount.value);
       if (input === els.invoiceNumber) els.invoiceNumber.value = normalizeInvoiceNumber(els.invoiceNumber.value);
+      updateSaveButtonState();
       checkDuplicateWarning();
     });
   });
