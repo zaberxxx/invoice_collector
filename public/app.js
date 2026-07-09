@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-fixed-records";
+const APP_VERSION = "2026.07.09-keyboard-focus";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -740,6 +740,30 @@ function resetPageOffset(force = false) {
   }, 80);
 }
 
+function editableTarget(target) {
+  return target?.matches?.("#reviewForm input, #settingsForm input");
+}
+
+function handleEditableFocus(event) {
+  if (!editableTarget(event.target)) return;
+  if (event.target.closest("#reviewForm") && cameraStream) stopLiveScan();
+  document.body.classList.add("is-keyboarding");
+  syncViewportHeight();
+  [80, 280, 520].forEach((delay) => {
+    window.setTimeout(() => {
+      event.target.scrollIntoView({ block: "center", inline: "nearest" });
+    }, delay);
+  });
+}
+
+function handleEditableBlur() {
+  window.setTimeout(() => {
+    if (editableTarget(document.activeElement)) return;
+    document.body.classList.remove("is-keyboarding");
+    resetPageOffset(true);
+  }, 120);
+}
+
 async function reloadApp() {
   showToast("正在重新載入新版");
   try {
@@ -809,7 +833,8 @@ function bindEvents() {
   window.visualViewport?.addEventListener("resize", syncViewportHeight);
   window.visualViewport?.addEventListener("scroll", resetPageOffset);
   window.addEventListener("resize", syncViewportHeight);
-  document.addEventListener("focusout", () => resetPageOffset(true));
+  document.addEventListener("focusin", handleEditableFocus);
+  document.addEventListener("focusout", handleEditableBlur);
 }
 
 async function init() {

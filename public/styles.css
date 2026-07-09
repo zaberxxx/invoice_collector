@@ -155,6 +155,18 @@ input {
   min-height: 0;
 }
 
+body.is-keyboarding #scanPanel.is-active {
+  padding-top: 8px;
+}
+
+body.is-keyboarding #scanPanel .scan-form {
+  display: none;
+}
+
+body.is-keyboarding #scanPanel .review-form {
+  gap: 10px;
+}
+
 #recordsPanel.is-active {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
