@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-tax-compact";
+const APP_VERSION = "2026.07.09-tax-align";
 const LIVE_QR_HISTORY_LIMIT = 12;
 const LIVE_SCAN_DELAY_MS = 100;
 

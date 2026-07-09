@@ -265,6 +265,7 @@ body.is-keyboarding #scanPanel .review-form {
   padding: 8px 10px;
   background: rgba(255, 240, 237, 0.94);
   box-shadow: 0 8px 20px rgba(74, 30, 20, 0.18);
+  text-align: center;
 }
 
 .scan-message {
@@ -422,6 +423,7 @@ input {
 .tax-result span,
 .tax-result strong {
   min-width: 0;
+  font-size: 16px;
   line-height: 1;
 }
 
