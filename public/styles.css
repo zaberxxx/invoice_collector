@@ -253,6 +253,17 @@ body.is-keyboarding #scanPanel .review-form {
   text-align: center;
 }
 
+.duplicate-overlay {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  padding: 8px 10px;
+  background: rgba(255, 240, 237, 0.94);
+  box-shadow: 0 8px 20px rgba(74, 30, 20, 0.18);
+}
+
 .actions,
 .toolbar {
   display: grid;

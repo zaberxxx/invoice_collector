@@ -37,6 +37,7 @@
             <video id="cameraPreview" playsinline muted></video>
             <canvas id="cameraFreeze" class="camera-freeze" hidden></canvas>
             <div class="camera-status" id="cameraStatus">準備開啟相機</div>
+            <div class="warning duplicate-overlay" id="duplicateWarning" hidden></div>
           </div>
         </div>
 
@@ -54,7 +55,6 @@
             </div>
           </div>
           <input id="buyerTaxId" name="buyerTaxId" type="hidden">
-          <div class="warning" id="duplicateWarning" hidden></div>
           <div class="actions">
             <button class="primary" id="saveReviewButton" type="submit" disabled>儲存記錄</button>
             <button class="secondary" id="clearReviewButton" type="button">清除</button>

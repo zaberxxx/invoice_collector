@@ -1,4 +1,4 @@
-const CACHE_NAME = "invoice-capture-v28";
+const CACHE_NAME = "invoice-capture-v29";
 const ASSETS = [
   "./",
   "./index.html",

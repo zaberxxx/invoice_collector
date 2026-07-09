@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-scan-focus";
+const APP_VERSION = "2026.07.09-duplicate-overlay";
 const LIVE_QR_HISTORY_LIMIT = 12;
 const LIVE_SCAN_DELAY_MS = 100;
 
@@ -523,7 +523,7 @@ async function checkDuplicateWarning() {
   els.duplicateWarning.hidden = false;
   els.duplicateWarning.textContent =
     duplicate.type === "exact"
-      ? `發票號碼已存在：${duplicate.record.invoiceNumber}，儲存時會再次確認。`
+      ? `發票號碼已存在：${duplicate.record.invoiceNumber}`
       : `可能重複：同日期與同金額已有一筆記錄。`;
 }
 
