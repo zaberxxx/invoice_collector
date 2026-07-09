@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-disabled-save";
+const APP_VERSION = "2026.07.09-fixed-pages";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -35,6 +35,7 @@ const els = {
   settingsForm: document.querySelector("#settingsForm"),
   targetTaxId: document.querySelector("#targetTaxId"),
   exportFilename: document.querySelector("#exportFilename"),
+  reloadAppButton: document.querySelector("#reloadAppButton"),
   exportButton: document.querySelector("#exportButton"),
   clearRecordsButton: document.querySelector("#clearRecordsButton"),
   importInput: document.querySelector("#importInput"),
@@ -717,8 +718,29 @@ async function handleRecordAction(event) {
 
 function setTab(name) {
   if (name !== "scan") stopLiveScan();
+  document.body.classList.toggle("is-fixed-page", name !== "records");
   els.tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.tab === name));
   Object.entries(els.panels).forEach(([key, panel]) => panel.classList.toggle("is-active", key === name));
+}
+
+async function reloadApp() {
+  showToast("正在重新載入新版");
+  try {
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration("./");
+      await registration?.update();
+    }
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((key) => key.startsWith("invoice-capture-"))
+          .map((key) => caches.delete(key))
+      );
+    }
+  } finally {
+    window.location.reload();
+  }
 }
 
 function bindEvents() {
@@ -744,6 +766,7 @@ function bindEvents() {
     showToast("設定已儲存");
   });
   els.exportButton.addEventListener("click", exportCsv);
+  els.reloadAppButton?.addEventListener("click", reloadApp);
   els.clearRecordsButton?.addEventListener("click", clearRecords);
   els.importInput.addEventListener("change", async () => {
     const file = els.importInput.files?.[0];
@@ -773,6 +796,7 @@ async function init() {
   db = await openDb();
   await loadSettings();
   bindEvents();
+  setTab("scan");
   await render();
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});

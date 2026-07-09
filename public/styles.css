@@ -24,6 +24,12 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+body.is-fixed-page {
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 button,
 input {
   font: inherit;

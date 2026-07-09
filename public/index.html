@@ -9,7 +9,7 @@
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="./styles.css">
   </head>
-  <body>
+  <body class="is-fixed-page">
     <main class="shell">
       <header class="app-header">
         <div>
@@ -82,6 +82,7 @@
           <label>指定統編<input id="targetTaxId" inputmode="numeric" pattern="[0-9]{8}" placeholder="請輸入 8 位數統編"></label>
           <label>固定匯出檔名<input id="exportFilename" value="invoice-summary.csv"></label>
           <button class="primary" type="submit">儲存設定</button>
+          <button class="secondary" id="reloadAppButton" type="button">Reload</button>
         </form>
         <p class="note">iPhone/iPad 會下載或分享同一個固定檔名；存入 iCloud Drive 時請選擇取代原檔，App 內資料會持續更新同一份主記錄。</p>
       </section>
