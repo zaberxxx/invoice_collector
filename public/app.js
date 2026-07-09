@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-keyboard-layout";
+const APP_VERSION = "2026.07.09-settings-version";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
