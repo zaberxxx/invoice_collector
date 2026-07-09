@@ -3,8 +3,9 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-qr-separate";
+const APP_VERSION = "2026.07.09-scan-focus";
 const LIVE_QR_HISTORY_LIMIT = 12;
+const LIVE_SCAN_DELAY_MS = 100;
 
 const els = {
   appVersion: document.querySelector("#appVersion"),
@@ -267,6 +268,7 @@ async function startLiveScan() {
     });
     els.cameraPreview.srcObject = cameraStream;
     await els.cameraPreview.play();
+    await tuneCameraForQr(cameraStream);
     els.cameraStatus.textContent = "請將左側 QR 放在框內";
     setLiveScanButton(true);
     scheduleLiveScan();
@@ -364,7 +366,24 @@ async function scanLiveFrame() {
   }
 
   if (cameraStream) {
-    window.setTimeout(scheduleLiveScan, 160);
+    window.setTimeout(scheduleLiveScan, LIVE_SCAN_DELAY_MS);
+  }
+}
+
+async function tuneCameraForQr(stream) {
+  const track = stream.getVideoTracks()[0];
+  if (!track?.getCapabilities || !track.applyConstraints) return;
+  const capabilities = track.getCapabilities();
+  const advanced = {};
+  if (capabilities.focusMode?.includes("continuous")) advanced.focusMode = "continuous";
+  if (capabilities.exposureMode?.includes("continuous")) advanced.exposureMode = "continuous";
+  if (capabilities.whiteBalanceMode?.includes("continuous")) advanced.whiteBalanceMode = "continuous";
+  if (capabilities.torch) advanced.torch = false;
+  if (!Object.keys(advanced).length) return;
+  try {
+    await track.applyConstraints({ advanced: [advanced] });
+  } catch {
+    // Some mobile browsers expose capabilities that cannot be applied.
   }
 }
 
