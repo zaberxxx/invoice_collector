@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-scan-button-up";
+const APP_VERSION = "2026.07.09-tax-warning";
 const LIVE_QR_HISTORY_LIMIT = 12;
 const LIVE_SCAN_DELAY_MS = 100;
 
@@ -179,17 +179,17 @@ function updateTaxResult() {
   const buyer = normalizeTaxId(els.buyerTaxId.value);
   if (els.taxIdValue) els.taxIdValue.textContent = buyer || "未辨識";
   if (!target) {
-    els.taxIdResult.textContent = "尚未設定";
+    els.taxIdResult.textContent = "";
     els.taxIdResult.className = "";
     return;
   }
   if (!buyer) {
-    els.taxIdResult.textContent = "未辨識";
+    els.taxIdResult.textContent = "";
     els.taxIdResult.className = "";
     return;
   }
   const matched = target === buyer;
-  els.taxIdResult.textContent = matched ? "正確" : "不符合";
+  els.taxIdResult.textContent = matched ? "✓" : "×";
   els.taxIdResult.className = matched ? "ok" : "warn";
 }
 
@@ -369,9 +369,11 @@ async function scanLiveFrame() {
     const raw = codes.map((code) => code.rawValue).filter(Boolean).join("\n");
     const combinedRaw = rememberLiveQrRaw(raw);
     const parsed = parseTaiwanInvoiceQr(combinedRaw);
-    if (hasCoreInvoiceData(parsed)) {
+    if (hasInvoiceBasics(parsed)) {
       freezeLiveScanForReview(parsed);
       applyDetectedInvoice(parsed, "已即時讀取 QR，請確認");
+      const taxWarning = invoiceTaxWarning(parsed);
+      if (taxWarning) showScanMessage(taxWarning);
       return;
     }
     if (Object.keys(removeEmpty(parsed)).length) {
@@ -409,6 +411,18 @@ async function tuneCameraForQr(stream) {
 
 function hasCoreInvoiceData(data = {}) {
   return Boolean(data.invoiceDate && data.totalAmount && data.buyerTaxId);
+}
+
+function hasInvoiceBasics(data = {}) {
+  return Boolean(data.invoiceNumber && data.invoiceDate && data.totalAmount);
+}
+
+function invoiceTaxWarning(data = {}) {
+  const target = normalizeTaxId(settings.targetTaxId);
+  const buyer = normalizeTaxId(data.buyerTaxId);
+  if (!buyer) return "未偵測到發票統編";
+  if (target && buyer !== target) return `統編不符合：${buyer}`;
+  return "";
 }
 
 function parseTaiwanInvoiceQr(raw) {

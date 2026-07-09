@@ -96,8 +96,10 @@ input {
 }
 
 .summary-strip div {
+  display: grid;
+  align-content: center;
   min-width: 0;
-  padding: 12px 10px;
+  padding: 7px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -114,6 +116,7 @@ input {
   margin-top: 6px;
   font-size: 20px;
   line-height: 1.1;
+  text-align: center;
   word-break: break-word;
 }
 
@@ -363,6 +366,7 @@ input {
   background: #fff;
   color: var(--ink);
   font-size: 16px;
+  text-align: center;
   appearance: none;
   -webkit-appearance: none;
 }
@@ -412,6 +416,7 @@ input {
   background: var(--panel);
   color: var(--ink);
   font-size: 15px;
+  text-align: center;
 }
 
 .tax-result span,
@@ -421,23 +426,36 @@ input {
 }
 
 .tax-result span {
+  flex: 1 1 auto;
   overflow: hidden;
-  text-align: left;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tax-result strong {
-  flex: 0 0 auto;
-  text-align: right;
+  display: inline-grid;
+  flex: 0 0 28px;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+  text-align: center;
 }
 
 .tax-result strong.ok {
-  color: var(--ok);
+  background: var(--ok);
 }
 
 .tax-result strong.warn {
-  color: var(--warn);
+  background: var(--warn);
+}
+
+.tax-result strong:empty {
+  display: none;
 }
 
 .record-list {
