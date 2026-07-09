@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-keyboard-focus";
+const APP_VERSION = "2026.07.09-keyboard-stable";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -55,6 +55,7 @@ let liveScanTimer = 0;
 let liveScanBusy = false;
 let liveScanDetector = null;
 let liveQrHistory = [];
+let keyboardAdjustTimer = 0;
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -749,14 +750,23 @@ function handleEditableFocus(event) {
   if (event.target.closest("#reviewForm") && cameraStream) stopLiveScan();
   document.body.classList.add("is-keyboarding");
   syncViewportHeight();
-  [80, 280, 520].forEach((delay) => {
-    window.setTimeout(() => {
-      event.target.scrollIntoView({ block: "center", inline: "nearest" });
-    }, delay);
-  });
+  clearTimeout(keyboardAdjustTimer);
+  keyboardAdjustTimer = window.setTimeout(() => keepFocusedInputVisible(event.target), 260);
+}
+
+function keepFocusedInputVisible(target) {
+  if (!editableTarget(target) || document.activeElement !== target) return;
+  syncViewportHeight();
+  const visualHeight = window.visualViewport?.height || window.innerHeight;
+  const rect = target.getBoundingClientRect();
+  const bottomLimit = visualHeight - 26;
+  if (rect.bottom > bottomLimit || rect.top < 8) {
+    target.scrollIntoView({ block: "center", inline: "nearest" });
+  }
 }
 
 function handleEditableBlur() {
+  clearTimeout(keyboardAdjustTimer);
   window.setTimeout(() => {
     if (editableTarget(document.activeElement)) return;
     document.body.classList.remove("is-keyboarding");
@@ -831,7 +841,6 @@ function bindEvents() {
     if (document.hidden) stopLiveScan();
   });
   window.visualViewport?.addEventListener("resize", syncViewportHeight);
-  window.visualViewport?.addEventListener("scroll", resetPageOffset);
   window.addEventListener("resize", syncViewportHeight);
   document.addEventListener("focusin", handleEditableFocus);
   document.addEventListener("focusout", handleEditableBlur);
