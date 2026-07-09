@@ -3,7 +3,7 @@ const DB_VERSION = 1;
 const STORE_RECORDS = "records";
 const STORE_SETTINGS = "settings";
 const DEFAULT_FILENAME = "invoice-summary.csv";
-const APP_VERSION = "2026.07.09-settings-version";
+const APP_VERSION = "2026.07.09-qr-separate";
 const LIVE_QR_HISTORY_LIMIT = 12;
 
 const els = {
@@ -374,10 +374,30 @@ function hasCoreInvoiceData(data = {}) {
 
 function parseTaiwanInvoiceQr(raw) {
   const text = String(raw || "").toUpperCase();
+  const segments = text
+    .split(/\n+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const segmentCandidates = segments
+    .flatMap(parseTaiwanInvoiceCandidates)
+    .filter((candidate) => Object.keys(removeEmpty(candidate)).length);
+  const segmentComplete = segmentCandidates.find(hasCoreInvoiceData);
+  if (segmentComplete) return segmentComplete;
+
+  const combinedCandidate = parseTaiwanInvoiceText(text);
+  return bestInvoiceCandidate([...segmentCandidates, combinedCandidate]);
+}
+
+function parseTaiwanInvoiceCandidates(text) {
   const compact = text.replace(/\s/g, "");
-  const fixedCandidates = [...compact.matchAll(/[A-Z]{2}\d{8}/g)]
+  return [...compact.matchAll(/[A-Z]{2}\d{8}/g)]
     .map((match) => parseTaiwanQrPayload(compact.slice(match.index)))
     .filter((candidate) => Object.keys(removeEmpty(candidate)).length);
+}
+
+function parseTaiwanInvoiceText(text) {
+  const compact = text.replace(/\s/g, "");
+  const fixedCandidates = parseTaiwanInvoiceCandidates(text);
   const completeCandidate = fixedCandidates.find(hasCoreInvoiceData);
   if (completeCandidate) return completeCandidate;
 
@@ -393,6 +413,21 @@ function parseTaiwanInvoiceQr(raw) {
     totalAmount: bestCandidate.totalAmount || (amountCandidates.length >= 2 ? String(parseInt(amountCandidates[1], 16)) : ""),
     buyerTaxId: bestCandidate.buyerTaxId || taxIds.find((id) => targetTaxId && id === targetTaxId) || ""
   };
+}
+
+function bestInvoiceCandidate(candidates) {
+  return candidates
+    .filter((candidate) => Object.keys(removeEmpty(candidate)).length)
+    .sort((a, b) => invoiceCandidateScore(b) - invoiceCandidateScore(a))[0] || {};
+}
+
+function invoiceCandidateScore(candidate) {
+  return (
+    (candidate.invoiceNumber ? 1 : 0) +
+    (candidate.invoiceDate ? 2 : 0) +
+    (candidate.totalAmount ? 3 : 0) +
+    (candidate.buyerTaxId ? 3 : 0)
+  );
 }
 
 function parseTaiwanQrPayload(payload) {
